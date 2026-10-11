@@ -23,6 +23,8 @@ npm run start                      # API + static web + worker
 
 The server serves the built web apps itself (`/` and `/testing/`); put it behind nginx / an ALB for TLS. `npm run start` runs TypeScript through `tsx`; for a hardened image precompile with `tsc` or bundle, and run `node dist/main.js`.
 
+**Render.** Use a Web Service, Node, build command `npm install && npm run build`, start command `npm start`, health check path `/api/health`. Render sets `PORT`; the process then listens on `0.0.0.0`. Set `NODE_VERSION=22.14.0`, `MXP_ENV=prod`, and `MXP_JWT_SECRET` (at least 24 characters). Without that secret the process exits before it opens a port, and Render reports the same "no open ports" error. For a first look at the demo, also set `MXP_SEED=1`. The SQLite file lives on the instance disk and is wiped on each deploy unless you attach a persistent disk and point `MXP_DB` and `MXP_SIM_DB` at it.
+
 On the first start with an empty database and no `MXP_SEED`, a **bootstrap** creates the reference data and a single `SYSTEM_ADMIN` named `admin` with `MXP_BOOTSTRAP_ADMIN_PASSWORD`. Sign in, change the password, create real users, then **remove the variable**. Rules, campaigns and users are created through the console under maker-checker; customers via the import endpoint or your own loader; `npm run seed` refuses to run in `prod`.
 
 ### 1.3 Configuration
@@ -30,7 +32,7 @@ On the first start with an empty database and no `MXP_SEED`, a **bootstrap** cre
 | Variable | Default | Meaning |
 |---|---|---|
 | `MXP_ENV` | `dev` | `dev`, `test`, `staging`, `prod`. `staging` and `prod` require a strong secret; `prod` adds HSTS and trusts the proxy |
-| `PORT`, `HOST` | `4000`, `127.0.0.1` | Listen address |
+| `PORT`, `HOST` | `4000`, `127.0.0.1` locally | Listen address. If `PORT` is set, or `MXP_ENV` is `prod` or `staging`, the default host is `0.0.0.0` so hosts such as Render can detect the port |
 | `MXP_DB` | `data/mxp.db` | Main database |
 | `MXP_SIM_DB` | `data/mxp-sim.db` | Simulation store (cases, runs, suites) |
 | `MXP_JWT_SECRET` | random in dev | **Required** (≥24 chars) in staging and prod; rotating it signs everyone out |

@@ -242,10 +242,11 @@ describe('environment configuration', () => {
     expect(() => loadConfig({ MXP_ENV: 'prod' } as any)).toThrow(/MXP_JWT_SECRET is required/);
     expect(() => loadConfig({ MXP_ENV: 'staging' } as any)).toThrow(/MXP_JWT_SECRET is required/);
     expect(() => loadConfig({ MXP_ENV: 'prod', MXP_JWT_SECRET: 'too-short' } as any)).toThrow(/at least 24/);
-    expect(loadConfig({ MXP_ENV: 'prod', MXP_JWT_SECRET: 'x'.repeat(32) } as any)).toMatchObject({ env: 'prod', seedIfEmpty: false, worker: true });
+    expect(loadConfig({ MXP_ENV: 'prod', MXP_JWT_SECRET: 'x'.repeat(32) } as any)).toMatchObject({ env: 'prod', seedIfEmpty: false, worker: true, host: '0.0.0.0' });
   });
   it('dev is convenient, test and prod are not seeded, and the worker can be split out', () => {
     expect(loadConfig({} as any)).toMatchObject({ env: 'dev', seedIfEmpty: true, port: 4000, host: '127.0.0.1' });
+    expect(loadConfig({ PORT: '10000' } as any)).toMatchObject({ port: 10000, host: '0.0.0.0' });
     expect(loadConfig({ MXP_ENV: 'test' } as any).seedIfEmpty).toBe(false);
     expect(loadConfig({ MXP_WORKER: '0' } as any).worker).toBe(false);
   });

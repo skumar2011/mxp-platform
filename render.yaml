@@ -1,0 +1,18 @@
+# Render web service. PORT is injected by Render; the server binds 0.0.0.0 when PORT is set.
+services:
+  - type: web
+    name: mxp
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.14.0
+      - key: MXP_ENV
+        value: prod
+      - key: MXP_JWT_SECRET
+        generateValue: true
+      - key: MXP_SEED
+        value: "1"

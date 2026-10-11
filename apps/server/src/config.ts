@@ -35,7 +35,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     env: mode,
     port: Number(env.PORT ?? 4000),
-    host: env.HOST ?? '127.0.0.1',
+    // Render (and similar hosts) inject PORT and only detect a process bound to 0.0.0.0.
+    // A local start with no PORT stays on localhost.
+    host: env.HOST ?? (mode === 'prod' || mode === 'staging' || env.PORT ? '0.0.0.0' : '127.0.0.1'),
     dbPath: at(env.MXP_DB ?? 'data/mxp.db'),
     simDbPath: at(env.MXP_SIM_DB ?? 'data/mxp-sim.db'),
     jwtSecret: secret,

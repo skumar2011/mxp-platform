@@ -1,0 +1,64 @@
+{
+  "code": "SAV_GROWTH_25K",
+  "changeNote": "Initial version",
+  "definition": {
+    "name": "Savings growth of ₹25,000 in a month",
+    "description": "Grow the savings balance by at least ₹25,000 during the month.",
+    "businessObjective": "Savings growth",
+    "category": "SAVINGS_GROWTH",
+    "campaignCode": "MXP_ALWAYS_ON",
+    "kind": "GOAL",
+    "eligibility": {
+      "type": "group",
+      "op": "AND",
+      "negate": false,
+      "children": [
+        {
+          "type": "condition",
+          "field": "customer.status",
+          "operator": "EQ",
+          "value": "ACTIVE"
+        }
+      ]
+    },
+    "qualifying": {
+      "type": "group",
+      "op": "AND",
+      "negate": false,
+      "children": [
+        {
+          "type": "condition",
+          "field": "account.product_family",
+          "operator": "EQ",
+          "value": "SAVINGS"
+        },
+        {
+          "type": "condition",
+          "field": "account.status",
+          "operator": "EQ",
+          "value": "ACTIVE"
+        }
+      ]
+    },
+    "metric": {
+      "type": "BALANCE_GROWTH",
+      "operator": "GTE"
+    },
+    "period": {
+      "type": "MONTHLY",
+      "timezone": "Asia/Kolkata"
+    },
+    "tiers": [
+      {
+        "label": "+₹25K",
+        "threshold": 25000,
+        "points": 400
+      }
+    ],
+    "effective": {
+      "from": "2026-09-01",
+      "to": null
+    },
+    "priority": 100
+  }
+}

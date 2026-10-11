@@ -1,0 +1,78 @@
+{
+  "code": "UTILITY_3_BILLS",
+  "changeNote": "Initial version",
+  "definition": {
+    "name": "3 utility bills in the campaign",
+    "description": "Pay three utility bills during the Utility Fest.",
+    "businessObjective": "Digital bill payments",
+    "category": "BILL_PAYMENT",
+    "campaignCode": "UTILITY_FEST",
+    "kind": "GOAL",
+    "eligibility": {
+      "type": "group",
+      "op": "AND",
+      "negate": false,
+      "children": [
+        {
+          "type": "condition",
+          "field": "customer.status",
+          "operator": "EQ",
+          "value": "ACTIVE"
+        }
+      ]
+    },
+    "qualifying": {
+      "type": "group",
+      "op": "AND",
+      "negate": false,
+      "children": [
+        {
+          "type": "condition",
+          "field": "txn.type",
+          "operator": "EQ",
+          "value": "BILL_PAYMENT"
+        },
+        {
+          "type": "condition",
+          "field": "txn.category",
+          "operator": "EQ",
+          "value": "UTILITY_BILL"
+        },
+        {
+          "type": "condition",
+          "field": "txn.dr_cr",
+          "operator": "EQ",
+          "value": "D"
+        }
+      ]
+    },
+    "metric": {
+      "type": "COUNT",
+      "operator": "GTE"
+    },
+    "period": {
+      "type": "CAMPAIGN",
+      "timezone": "Asia/Kolkata"
+    },
+    "tiers": [
+      {
+        "label": "3 bills",
+        "threshold": 3,
+        "points": 150
+      },
+      {
+        "label": "6 bills",
+        "threshold": 6,
+        "points": 250
+      }
+    ],
+    "limits": {
+      "frequency": "RECURRING"
+    },
+    "effective": {
+      "from": null,
+      "to": null
+    },
+    "priority": 100
+  }
+}

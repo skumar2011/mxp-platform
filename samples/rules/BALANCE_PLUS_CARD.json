@@ -1,0 +1,53 @@
+{
+  "code": "BALANCE_PLUS_CARD",
+  "changeNote": "Initial version",
+  "definition": {
+    "name": "Balance + card combo",
+    "description": "Meet both the savings balance goal and the card spend goal in the same month.",
+    "businessObjective": "Cross-sell: deeper relationship",
+    "category": "COMBINED",
+    "campaignCode": "MXP_ALWAYS_ON",
+    "kind": "COMBINED",
+    "eligibility": {
+      "type": "group",
+      "op": "AND",
+      "negate": false,
+      "children": [
+        {
+          "type": "condition",
+          "field": "customer.status",
+          "operator": "EQ",
+          "value": "ACTIVE"
+        }
+      ]
+    },
+    "combined": {
+      "components": [
+        {
+          "ruleCode": "SAV_AVG_BAL_50K",
+          "minTier": 1
+        },
+        {
+          "ruleCode": "CARD_SPEND_10K",
+          "minTier": 1
+        }
+      ]
+    },
+    "period": {
+      "type": "MONTHLY",
+      "timezone": "Asia/Kolkata"
+    },
+    "tiers": [
+      {
+        "label": "Both goals",
+        "threshold": 2,
+        "points": 1000
+      }
+    ],
+    "effective": {
+      "from": "2026-09-01",
+      "to": null
+    },
+    "priority": 100
+  }
+}

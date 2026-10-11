@@ -1,0 +1,21 @@
+{
+  "campaigns": [
+    {
+      "code": "MXP_ALWAYS_ON",
+      "name": "MXP Always-on rewards",
+      "description": "Standing monthly goals for all retail customers.",
+      "objective": "Daily banking engagement",
+      "startDate": "2026-01-01",
+      "endDate": "2027-12-31"
+    },
+    {
+      "code": "UTILITY_FEST",
+      "name": "Utility bill fest",
+      "description": "Pay utility bills digitally during the campaign.",
+      "objective": "Digital bill payments",
+      "startDate": "2026-09-01",
+      "endDate": "2026-11-30",
+      "pointsBudget": 100000
+    }
+  ]
+}

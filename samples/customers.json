@@ -1,0 +1,152 @@
+{
+  "customers": [
+    {
+      "ref": "CUST-1001",
+      "name": "A*** S****",
+      "segments": [
+        "AFFLUENT",
+        "DIGITAL_FIRST"
+      ],
+      "accounts": [
+        {
+          "ref": "SA-1001",
+          "product": "SAV_PREMIUM",
+          "type": "SAVINGS",
+          "openedOn": "2022-04-11"
+        },
+        {
+          "ref": "CCA-1001",
+          "product": "CC_PLATINUM",
+          "type": "CREDIT_CARD",
+          "openedOn": "2023-01-05"
+        }
+      ],
+      "instruments": [
+        {
+          "ref": "CARD-1001",
+          "type": "CREDIT_CARD",
+          "account": "CCA-1001",
+          "product": "CC_PLATINUM"
+        },
+        {
+          "ref": "VPA-1001",
+          "type": "UPI_VPA",
+          "account": "SA-1001",
+          "product": "UPI_VPA"
+        }
+      ]
+    },
+    {
+      "ref": "CUST-1002",
+      "name": "R**** K****",
+      "segments": [
+        "SALARIED"
+      ],
+      "accounts": [
+        {
+          "ref": "SA-1002",
+          "product": "SAV_REGULAR",
+          "type": "SAVINGS",
+          "openedOn": "2021-08-23"
+        },
+        {
+          "ref": "CCA-1002",
+          "product": "CC_GOLD",
+          "type": "CREDIT_CARD",
+          "openedOn": "2022-06-30"
+        }
+      ],
+      "instruments": [
+        {
+          "ref": "CARD-1002",
+          "type": "CREDIT_CARD",
+          "account": "CCA-1002",
+          "product": "CC_GOLD"
+        },
+        {
+          "ref": "VPA-1002",
+          "type": "UPI_VPA",
+          "account": "SA-1002",
+          "product": "UPI_VPA"
+        }
+      ]
+    },
+    {
+      "ref": "CUST-1003",
+      "name": "M**** I****",
+      "segments": [
+        "MASS",
+        "DIGITAL_FIRST"
+      ],
+      "accounts": [
+        {
+          "ref": "SA-1003",
+          "product": "SAV_REGULAR",
+          "type": "SAVINGS",
+          "openedOn": "2020-02-17"
+        }
+      ],
+      "instruments": [
+        {
+          "ref": "VPA-1003",
+          "type": "UPI_VPA",
+          "account": "SA-1003",
+          "product": "UPI_VPA"
+        }
+      ]
+    },
+    {
+      "ref": "CUST-1004",
+      "name": "K**** M****",
+      "segments": [
+        "AFFLUENT"
+      ],
+      "accounts": [
+        {
+          "ref": "SA-1004",
+          "product": "SAV_PREMIUM",
+          "type": "SAVINGS",
+          "openedOn": "2019-11-02"
+        },
+        {
+          "ref": "CCA-1004",
+          "product": "CC_PLATINUM",
+          "type": "CREDIT_CARD",
+          "openedOn": "2021-03-14"
+        }
+      ],
+      "instruments": [
+        {
+          "ref": "CARD-1004",
+          "type": "CREDIT_CARD",
+          "account": "CCA-1004",
+          "product": "CC_PLATINUM"
+        }
+      ]
+    },
+    {
+      "ref": "CUST-1005",
+      "name": "S**** N****",
+      "segments": [
+        "NEW_TO_BANK"
+      ],
+      "consent": false,
+      "accounts": [
+        {
+          "ref": "SA-1005",
+          "product": "SAV_REGULAR",
+          "type": "SAVINGS",
+          "openedOn": "2026-09-20"
+        }
+      ],
+      "instruments": [
+        {
+          "ref": "VPA-1005",
+          "type": "UPI_VPA",
+          "account": "SA-1005",
+          "product": "UPI_VPA"
+        }
+      ]
+    }
+  ]
+}

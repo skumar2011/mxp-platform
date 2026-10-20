@@ -1,0 +1,153 @@
+{
+  "pack": "mxp-retail",
+  "description": "Sample retail bank configuration. Same rule types for every segment, different values and emphasis per segment.",
+  "references": {
+    "merchants": ["M_SWIGGY", "M_ZOMATO", "M_AMAZON", "M_FLIPKART", "M_DREAM11", "M_BETWAY", "M_MAKEMYTRIP", "M_BIGBASKET", "M_UBER", "M_NETFLIX"]
+  },
+  "rules": [
+    {
+      "kind": "Rule", "code": "DSL_MASS", "template": "DAILY_SPEND_LIMIT", "name": "Daily Spend Limit – Mass",
+      "description": "Daily cap for Mass and Youth customers.",
+      "segments": ["MASS", "YOUTH"],
+      "params": { "channels": ["CARD_POS", "CARD_ONLINE", "UPI"], "action": "ALERT", "warnAtPct": 80, "points": 10, "minActivity": 1 },
+      "customerParams": { "limit": { "min": 500, "max": 25000, "step": 100, "default": 3000 } },
+      "settingsPolicy": { "changeEffective": "NEXT_WINDOW", "cooldownDays": 0 },
+      "effective": { "from": "2026-01-01" }, "tags": ["segment:mass"]
+    },
+    {
+      "kind": "Rule", "code": "DSL_AFFLUENT", "template": "DAILY_SPEND_LIMIT", "name": "Daily Spend Limit – Affluent",
+      "segments": ["AFFLUENT"],
+      "params": { "channels": ["CARD_POS", "CARD_ONLINE", "UPI", "NETBANKING"], "action": "ALERT", "warnAtPct": 90, "points": 15, "minActivity": 1 },
+      "customerParams": { "limit": { "min": 10000, "max": 500000, "step": 1000, "default": 200000 } },
+      "settingsPolicy": { "changeEffective": "NEXT_WINDOW", "cooldownDays": 0 },
+      "effective": { "from": "2026-01-01" }, "tags": ["segment:affluent"]
+    },
+    {
+      "kind": "Rule", "code": "MSL_STANDARD", "template": "MONTHLY_SPEND_LIMIT", "name": "Monthly Spend Limit",
+      "params": { "windowType": "MONTH", "points": 100, "minActivity": 5 },
+      "customerParams": { "limit": { "min": 5000, "max": 2000000, "step": 500, "default": 50000 } },
+      "settingsPolicy": { "changeEffective": "NEXT_WINDOW", "cooldownDays": 7 },
+      "effective": { "from": "2026-01-01" }
+    },
+    {
+      "kind": "Rule", "code": "MSL_ROLLING_AFFLUENT", "template": "MONTHLY_SPEND_LIMIT", "name": "Rolling 30-day Spend Limit – Affluent",
+      "segments": ["AFFLUENT"],
+      "params": { "windowType": "ROLLING_DAYS", "points": 150, "minActivity": 5, "warnAtPct": 85 },
+      "customerParams": { "limit": { "min": 50000, "max": 5000000, "step": 5000, "default": 500000 } },
+      "settingsPolicy": { "changeEffective": "IMMEDIATE", "cooldownDays": 7 },
+      "effective": { "from": "2026-01-01" }
+    },
+    {
+      "kind": "Rule", "code": "CSL_MASS", "template": "CATEGORY_SPEND_LIMIT", "name": "Category Limit – Food & Groceries focus",
+      "segments": ["MASS", "YOUTH"],
+      "params": { "period": "MONTH", "points": 50, "minActivity": 3 },
+      "customerParams": {
+        "categories": { "options": ["FOOD_GROCERY", "DINING", "SHOPPING", "ENTERTAINMENT", "FUEL"], "default": ["FOOD_GROCERY"], "maxItems": 3 },
+        "limit": { "min": 500, "max": 50000, "step": 100, "default": 8000 }
+      },
+      "effective": { "from": "2026-01-01" }, "tags": ["emphasis:food-groceries"]
+    },
+    {
+      "kind": "Rule", "code": "CSL_AFFLUENT", "template": "CATEGORY_SPEND_LIMIT", "name": "Category Limit – Travel & Dining focus",
+      "segments": ["AFFLUENT"],
+      "params": { "period": "MONTH", "points": 75, "minActivity": 3 },
+      "customerParams": {
+        "categories": { "options": ["TRAVEL", "DINING", "SHOPPING", "ENTERTAINMENT"], "default": ["TRAVEL", "DINING"], "maxItems": 4 },
+        "limit": { "min": 10000, "max": 1000000, "step": 1000, "default": 150000 }
+      },
+      "effective": { "from": "2026-01-01" }, "tags": ["emphasis:travel-dining"]
+    },
+    {
+      "kind": "Rule", "code": "MERCHANT_BLOCK_STD", "template": "MERCHANT_RESTRICTION", "name": "Merchant Block",
+      "params": { "action": "BLOCK", "period": "MONTH", "points": 25, "minActivity": 5 },
+      "customerParams": { "merchants": { "maxItems": 20 } },
+      "settingsPolicy": { "changeEffective": "IMMEDIATE", "cooldownDays": 0 },
+      "effective": { "from": "2026-01-01" }
+    },
+    {
+      "kind": "Rule", "code": "TXN_TYPE_BLOCK_STD", "template": "TXN_TYPE_RESTRICTION", "name": "Transaction Type Block",
+      "params": { "action": "BLOCK", "period": "MONTH", "points": 25, "minActivity": 5 },
+      "customerParams": { "blockedTypes": { "options": ["ATM_WITHDRAWAL", "CASH_ADVANCE", "INTERNATIONAL_POS"], "default": ["ATM_WITHDRAWAL"] } },
+      "settingsPolicy": { "changeEffective": "IMMEDIATE", "cooldownDays": 0 },
+      "effective": { "from": "2026-01-01" }
+    },
+    {
+      "kind": "Rule", "code": "TIMING_STD", "template": "TIMING_RESTRICTION", "name": "Night-time Spend Restriction",
+      "params": { "channels": ["CARD_POS", "CARD_ONLINE", "UPI"], "action": "ALERT", "period": "WEEK", "points": 15, "minActivity": 3 },
+      "customerParams": {},
+      "settingsPolicy": { "changeEffective": "NEXT_WINDOW", "cooldownDays": 0 },
+      "effective": { "from": "2026-01-01" }
+    },
+    {
+      "kind": "Rule", "code": "AMB_DAYS_MASS", "template": "AVG_BALANCE_DAYS", "name": "Balance ₹10K for 20 days – Mass",
+      "segments": ["MASS", "YOUTH"],
+      "params": { "threshold": 10000, "days": 20, "points": 200 },
+      "effective": { "from": "2026-01-01" }
+    },
+    {
+      "kind": "Rule", "code": "AMB_DAYS_AFFLUENT", "template": "AVG_BALANCE_DAYS", "name": "Balance ₹2L for 20 days – Affluent",
+      "segments": ["AFFLUENT"],
+      "params": { "threshold": 200000, "days": 20, "points": 500 },
+      "effective": { "from": "2026-01-01" }
+    },
+    {
+      "kind": "Rule", "code": "AMB_AVG_AFFLUENT", "template": "AVG_MONTHLY_BALANCE", "name": "Average Monthly Balance – Affluent",
+      "segments": ["AFFLUENT"],
+      "params": { "tier1": 500000, "points1": 300, "tier2": 1000000, "points2": 700 },
+      "effective": { "from": "2026-01-01" }
+    },
+    {
+      "kind": "Rule", "code": "UPI_STREAK_MASS", "template": "UPI_TXN_COUNT", "name": "UPI Streak – 10 payments a month",
+      "description": "Featured mission for Mass customers.",
+      "segments": ["MASS", "YOUTH"], "featured": true,
+      "params": { "target": 10, "points": 150, "minAmount": 50, "maxPerDay": 3 },
+      "effective": { "from": "2026-01-01" }
+    },
+    {
+      "kind": "Rule", "code": "REFERRAL_STD", "template": "REFER_A_CUSTOMER", "name": "Refer a Friend",
+      "params": { "points": 500, "maxPerYear": 5 },
+      "effective": { "from": "2026-01-01" }
+    },
+    {
+      "kind": "Rule", "code": "CROSS_SELL_STD", "template": "ADDITIONAL_PRODUCT", "name": "Add a Product",
+      "params": { "points": 300, "maxProducts": 3 },
+      "effective": { "from": "2026-01-01" }
+    },
+    {
+      "kind": "Rule", "code": "RD_STREAK_AFFLUENT", "template": "RD_PAYMENT_STREAK", "name": "RD Streak – Affluent",
+      "description": "Featured mission for Affluent customers.",
+      "segments": ["AFFLUENT"], "featured": true,
+      "params": { "m1": 3, "p1": 150, "m2": 6, "p2": 400, "m3": 12, "p3": 1000 },
+      "effective": { "from": "2026-01-01" }
+    },
+    {
+      "kind": "Rule", "code": "RD_STREAK_MASS", "template": "RD_PAYMENT_STREAK", "name": "RD Streak – Mass",
+      "segments": ["MASS", "YOUTH"],
+      "params": { "m1": 3, "p1": 100, "m2": 6, "p2": 250, "m3": 12, "p3": 600 },
+      "effective": { "from": "2026-01-01" }
+    },
+    {
+      "kind": "Rule", "code": "RD_COMPLETE_STD", "template": "RD_COMPLETION", "name": "Complete your RD",
+      "params": { "points": 1000, "maxMissed": 0, "minTenure": 6 },
+      "effective": { "from": "2026-01-01" }
+    },
+    {
+      "kind": "Rule", "code": "FD_RENEW_AFFLUENT", "template": "FD_RENEWAL", "name": "FD Renewal Bonus – Affluent",
+      "segments": ["AFFLUENT"],
+      "params": { "minAmount": 100000, "pointsPer": 10, "perAmount": 10000, "capPerYear": 2000 },
+      "effective": { "from": "2026-01-01" }
+    },
+    {
+      "kind": "Rule", "code": "DORMANCY_WINBACK", "template": "DORMANCY_PREVENTION", "name": "Welcome Back",
+      "eligibility": { "field": "customer.dormancy_risk", "op": "eq", "value": true },
+      "params": { "activeDays": 2, "minAmount": 100, "points": 100 },
+      "effective": { "from": "2026-01-01" }
+    },
+    {
+      "kind": "Rule", "code": "DIVERSITY_STD", "template": "SPEND_DIVERSITY", "name": "Use 3 Products",
+      "enrollment": "OPT_IN",
+      "params": { "distinct": 3, "minAmount": 200, "points": 250 },
+      "effective": { "from": "2026-01-01" }
+    }
+  ]
+}

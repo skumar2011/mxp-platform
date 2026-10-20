@@ -1,8 +1,8 @@
 {
   "name": "mxp-platform",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Money XP (MXP): transaction-based gamification and rewards platform",
+  "description": "Money XP (MXP): rule-file driven spend controls and bank-defined missions",
   "type": "module",
   "engines": {
     "node": ">=22.13"
@@ -13,18 +13,12 @@
   ],
   "scripts": {
     "seed": "npm run seed -w @mxp/server --",
-    "load:samples": "npm run load:samples -w @mxp/server --",
     "dev": "concurrently -n api,web -c blue,green \"npm run dev -w @mxp/server\" \"npm run dev -w @mxp/web\"",
-    "dev:api": "npm run dev -w @mxp/server",
-    "dev:web": "npm run dev -w @mxp/web",
     "build": "npm run build -w @mxp/web",
     "start": "npm run start -w @mxp/server",
-    "typecheck": "tsc -p packages/engine --noEmit && tsc -p apps/server --noEmit && tsc -p apps/web --noEmit",
+    "typecheck": "tsc -p packages/rules --noEmit && tsc -p packages/platform --noEmit && tsc -p apps/server --noEmit && tsc -p apps/web --noEmit",
     "test": "vitest run",
-    "test:unit": "vitest run packages/engine/test/unit",
-    "test:integration": "vitest run packages/engine/test/integration",
-    "test:e2e": "vitest run apps/server/test",
-    "test:regression": "vitest run packages/engine/test/regression"
+    "export:pack": "tsx scripts/export-pack.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
@@ -32,9 +26,5 @@
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^2.0.5"
-  },
-  "dependencies": {
-    "@fastify/static": "10.1.6",
-    "vite": "8.3.4"
   }
 }

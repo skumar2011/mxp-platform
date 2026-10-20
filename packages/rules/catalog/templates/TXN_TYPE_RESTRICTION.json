@@ -1,0 +1,28 @@
+{
+  "kind": "RuleTemplate",
+  "code": "TXN_TYPE_RESTRICTION",
+  "version": 1,
+  "family": "SPEND_CONTROL",
+  "name": "Transaction Type Restrictions",
+  "description": "Block whole transaction types, for example cash withdrawals or international spends.",
+  "icon": "⛔",
+  "category": "Restrictions",
+  "summary": "Make no transactions of these types: {blockedTypes}. Earn {points} points for each {period} with none.",
+  "params": [
+    { "name": "blockedTypes", "label": "Blocked transaction types", "type": "enum[]", "setBy": "CUSTOMER", "optionsFrom": "txn_types" },
+    { "name": "action", "label": "On a blocked type", "type": "enum", "setBy": "BANK", "options": ["ALERT", "BLOCK"], "default": "BLOCK" },
+    { "name": "period", "label": "Reward period", "type": "enum", "setBy": "BANK", "options": ["WEEK", "MONTH"], "default": "MONTH" },
+    { "name": "points", "label": "Points per clean period", "type": "integer", "setBy": "BANK", "min": 0, "default": 25 },
+    { "name": "minActivity", "label": "Minimum transactions in the period to earn", "type": "integer", "setBy": "BANK", "min": 1, "default": 5 }
+  ],
+  "logic": {
+    "events": ["TRANSACTION"],
+    "scope": { "field": "event.dr_cr", "op": "eq", "value": "D" },
+    "filter": { "field": "event.txn_type", "op": "in", "value": { "$param": "blockedTypes" } },
+    "measure": { "type": "COUNT" },
+    "window": { "type": { "$param": "period" } },
+    "goal": { "op": "lte", "target": 0 },
+    "control": { "action": { "$param": "action" } },
+    "reward": { "mode": "WINDOW_COMPLIANCE", "points": { "$param": "points" }, "minActivity": { "$param": "minActivity" } }
+  }
+}

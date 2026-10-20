@@ -1,0 +1,35 @@
+{
+  "kind": "RuleTemplate",
+  "code": "TIMING_RESTRICTION",
+  "version": 1,
+  "family": "SPEND_CONTROL",
+  "name": "Timing Restrictions",
+  "description": "Restricted hours chosen by the customer, evaluated in the customer's own timezone. Ranges may cross midnight.",
+  "icon": "🕐",
+  "category": "Restrictions",
+  "summary": "No spend on {channels} between {from} and {to} (your local time). Earn {points} points for each {period} with none.",
+  "params": [
+    { "name": "from", "label": "Start time", "type": "time", "setBy": "CUSTOMER", "default": "23:00" },
+    { "name": "to", "label": "End time", "type": "time", "setBy": "CUSTOMER", "default": "06:00" },
+    { "name": "channels", "label": "Channels covered", "type": "enum[]", "setBy": "BANK", "optionsFrom": "channels", "default": ["CARD_POS", "CARD_ONLINE", "UPI"] },
+    { "name": "action", "label": "Inside restricted hours", "type": "enum", "setBy": "BANK", "options": ["ALERT", "BLOCK"], "default": "ALERT" },
+    { "name": "period", "label": "Reward period", "type": "enum", "setBy": "BANK", "options": ["DAY", "WEEK", "MONTH"], "default": "WEEK" },
+    { "name": "points", "label": "Points per clean period", "type": "integer", "setBy": "BANK", "min": 0, "default": 15 },
+    { "name": "minActivity", "label": "Minimum spends in the period to earn", "type": "integer", "setBy": "BANK", "min": 1, "default": 3 }
+  ],
+  "logic": {
+    "events": ["TRANSACTION"],
+    "scope": {
+      "all": [
+        { "field": "event.dr_cr", "op": "eq", "value": "D" },
+        { "field": "event.channel", "op": "in", "value": { "$param": "channels" } }
+      ]
+    },
+    "filter": { "field": "event.local.time", "op": "time_between", "value": [{ "$param": "from" }, { "$param": "to" }] },
+    "measure": { "type": "COUNT" },
+    "window": { "type": { "$param": "period" }, "timezone": "CUSTOMER" },
+    "goal": { "op": "lte", "target": 0 },
+    "control": { "action": { "$param": "action" } },
+    "reward": { "mode": "WINDOW_COMPLIANCE", "points": { "$param": "points" }, "minActivity": { "$param": "minActivity" } }
+  }
+}

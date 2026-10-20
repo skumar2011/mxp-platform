@@ -11,10 +11,9 @@ export interface Config {
   port: number;
   host: string;
   dbPath: string;
-  simDbPath: string;
   jwtSecret: string;
   jwtTtl: string;
-  /** Run the background worker / period-close / nudge dispatcher in this process. */
+  /** Run the window-close worker in this process. */
   worker: boolean;
   workerIntervalMs: number;
   /** Serve the built web apps from this directory (if it exists). */
@@ -39,11 +38,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // A local start with no PORT stays on localhost.
     host: env.HOST ?? (mode === 'prod' || mode === 'staging' || env.PORT ? '0.0.0.0' : '127.0.0.1'),
     dbPath: at(env.MXP_DB ?? 'data/mxp.db'),
-    simDbPath: at(env.MXP_SIM_DB ?? 'data/mxp-sim.db'),
     jwtSecret: secret,
     jwtTtl: env.MXP_JWT_TTL ?? '8h',
     worker: env.MXP_WORKER !== '0',
-    workerIntervalMs: Number(env.MXP_WORKER_INTERVAL_MS ?? 1000),
+    workerIntervalMs: Number(env.MXP_WORKER_INTERVAL_MS ?? 60_000),
     webDist: at(env.MXP_WEB_DIST ?? 'apps/web/dist'),
     corsOrigin: env.MXP_CORS_ORIGIN ?? null,
     seedIfEmpty: (env.MXP_SEED ?? (mode === 'dev' ? '1' : '0')) === '1',

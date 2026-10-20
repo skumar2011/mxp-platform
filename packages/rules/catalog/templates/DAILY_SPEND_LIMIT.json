@@ -1,0 +1,34 @@
+{
+  "kind": "RuleTemplate",
+  "code": "DAILY_SPEND_LIMIT",
+  "version": 1,
+  "family": "SPEND_CONTROL",
+  "name": "Daily Spend Limit",
+  "description": "Customer-configured cap on total daily spend, evaluated in real time on every transaction.",
+  "icon": "💳",
+  "category": "Spend limits",
+  "summary": "Keep total daily spend on {channels} within {limit}. Earn {points} points for each day you stay within it.",
+  "params": [
+    { "name": "limit", "label": "Daily limit", "type": "money", "setBy": "CUSTOMER", "min": 100, "max": 1000000, "step": 100 },
+    { "name": "channels", "label": "Channels covered", "type": "enum[]", "setBy": "BANK", "optionsFrom": "channels", "default": ["CARD_POS", "CARD_ONLINE", "UPI"] },
+    { "name": "action", "label": "When the limit is exceeded", "type": "enum", "setBy": "BANK", "options": ["ALERT", "BLOCK"], "default": "ALERT" },
+    { "name": "warnAtPct", "label": "Warn at % of limit", "type": "percent", "setBy": "BANK", "default": 80 },
+    { "name": "points", "label": "Points per compliant day", "type": "integer", "setBy": "BANK", "min": 0, "default": 10 },
+    { "name": "minActivity", "label": "Minimum transactions in the day to earn", "type": "integer", "setBy": "BANK", "min": 1, "default": 1 }
+  ],
+  "logic": {
+    "events": ["TRANSACTION"],
+    "scope": {
+      "all": [
+        { "field": "event.dr_cr", "op": "eq", "value": "D" },
+        { "field": "event.channel", "op": "in", "value": { "$param": "channels" } },
+        { "field": "event.txn_type", "op": "not_in", "value": ["SELF_TRANSFER", "REFUND"] }
+      ]
+    },
+    "measure": { "type": "SUM", "field": "event.amount" },
+    "window": { "type": "DAY" },
+    "goal": { "op": "lte", "target": { "$param": "limit" } },
+    "control": { "action": { "$param": "action" }, "warnAtPct": { "$param": "warnAtPct" } },
+    "reward": { "mode": "WINDOW_COMPLIANCE", "points": { "$param": "points" }, "minActivity": { "$param": "minActivity" } }
+  }
+}

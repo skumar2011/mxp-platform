@@ -1,0 +1,22 @@
+{
+  "kind": "RuleTemplate",
+  "code": "REFER_A_CUSTOMER",
+  "version": 1,
+  "family": "MISSION",
+  "name": "Refer a Customer",
+  "description": "Rewarded on approval only. Each referral is rewarded once; a later rejection of the same referral claws the points back.",
+  "icon": "🤝",
+  "category": "Growth",
+  "summary": "Earn {points} points for every referred customer whose account is approved (up to {maxPerYear} a year).",
+  "params": [
+    { "name": "points", "label": "Points per approved referral", "type": "integer", "setBy": "BANK", "min": 0, "default": 500 },
+    { "name": "maxPerYear", "label": "Max rewarded referrals per year", "type": "integer", "setBy": "BANK", "min": 1, "default": 5 }
+  ],
+  "logic": {
+    "events": ["REFERRAL"],
+    "filter": { "field": "event.status", "op": "eq", "value": "APPROVED" },
+    "measure": { "type": "COUNT", "dedupeBy": "event.referral_id" },
+    "window": { "type": "YEAR" },
+    "reward": { "mode": "PER_EVENT", "points": { "$param": "points" }, "maxAwardsPerWindow": { "$param": "maxPerYear" } }
+  }
+}

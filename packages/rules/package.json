@@ -1,0 +1,16 @@
+{
+  "name": "@mxp/rules",
+  "version": "2.0.0",
+  "description": "MXP business rules engine: rule-file driven spend controls and bank-defined missions. Runtime-agnostic (Node, browser, edge).",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./catalog": "./src/catalog.ts"
+  },
+  "dependencies": {
+    "zod": "^3.24.0"
+  }
+}

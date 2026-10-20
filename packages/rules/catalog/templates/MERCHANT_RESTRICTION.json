@@ -1,0 +1,28 @@
+{
+  "kind": "RuleTemplate",
+  "code": "MERCHANT_RESTRICTION",
+  "version": 1,
+  "family": "SPEND_CONTROL",
+  "name": "Merchant Restrictions",
+  "description": "Block specific merchants entirely. Any spend at a blocked merchant is a breach.",
+  "icon": "🚫",
+  "category": "Restrictions",
+  "summary": "No spend at {merchants}. Earn {points} points for each {period} with none.",
+  "params": [
+    { "name": "merchants", "label": "Blocked merchants", "type": "string[]", "setBy": "CUSTOMER", "description": "Merchant IDs the customer wants to block." },
+    { "name": "action", "label": "On a blocked merchant", "type": "enum", "setBy": "BANK", "options": ["ALERT", "BLOCK"], "default": "BLOCK" },
+    { "name": "period", "label": "Reward period", "type": "enum", "setBy": "BANK", "options": ["WEEK", "MONTH"], "default": "MONTH" },
+    { "name": "points", "label": "Points per clean period", "type": "integer", "setBy": "BANK", "min": 0, "default": 25 },
+    { "name": "minActivity", "label": "Minimum spends in the period to earn", "type": "integer", "setBy": "BANK", "min": 1, "default": 5 }
+  ],
+  "logic": {
+    "events": ["TRANSACTION"],
+    "scope": { "field": "event.dr_cr", "op": "eq", "value": "D" },
+    "filter": { "field": "event.merchant_id", "op": "in", "value": { "$param": "merchants" } },
+    "measure": { "type": "COUNT" },
+    "window": { "type": { "$param": "period" } },
+    "goal": { "op": "lte", "target": 0 },
+    "control": { "action": { "$param": "action" } },
+    "reward": { "mode": "WINDOW_COMPLIANCE", "points": { "$param": "points" }, "minActivity": { "$param": "minActivity" } }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "kind": "RuleTemplate",
+  "code": "RD_COMPLETION",
+  "version": 1,
+  "family": "MISSION",
+  "name": "RD Timeline Completion",
+  "description": "Full-term milestone: the recurring deposit matures without premature closure. Paid once per RD account.",
+  "icon": "🏁",
+  "category": "Savings habits",
+  "summary": "Complete an RD of at least {minTenure} months with no more than {maxMissed} missed installments. Earn {points} points.",
+  "params": [
+    { "name": "points", "label": "Points", "type": "integer", "setBy": "BANK", "min": 0, "default": 1000 },
+    { "name": "maxMissed", "label": "Max missed installments", "type": "integer", "setBy": "BANK", "min": 0, "default": 0 },
+    { "name": "minTenure", "label": "Minimum tenure (months)", "type": "integer", "setBy": "BANK", "min": 1, "default": 6 }
+  ],
+  "logic": {
+    "events": ["RD_MATURITY"],
+    "subject": "ACCOUNT",
+    "filter": {
+      "all": [
+        { "field": "event.status", "op": "eq", "value": "COMPLETED" },
+        { "field": "event.installments_missed", "op": "lte", "value": { "$param": "maxMissed" } },
+        { "field": "event.tenure_months", "op": "gte", "value": { "$param": "minTenure" } }
+      ]
+    },
+    "measure": { "type": "COUNT" },
+    "window": { "type": "LIFETIME" },
+    "goal": { "op": "gte", "target": 1 },
+    "reward": { "mode": "ON_GOAL", "points": { "$param": "points" }, "maxAwards": 1 }
+  }
+}

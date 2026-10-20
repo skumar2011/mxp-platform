@@ -1,0 +1,2674 @@
+{
+  "kind": "RulePack",
+  "pack": "mxp-retail",
+  "version": "2026-10-14.1",
+  "timezone": "Asia/Kolkata",
+  "currency": "INR",
+  "description": "MXP retail bank rule pack: spend controls and bank-defined missions.",
+  "references": {
+    "event_types": [
+      "TRANSACTION",
+      "BALANCE_SNAPSHOT",
+      "REFERRAL",
+      "PRODUCT_APPLICATION",
+      "RD_INSTALLMENT",
+      "RD_MATURITY",
+      "FD_MATURITY"
+    ],
+    "segments": [
+      "MASS",
+      "AFFLUENT",
+      "YOUTH",
+      "SENIOR"
+    ],
+    "channels": [
+      "CARD_POS",
+      "CARD_ONLINE",
+      "UPI",
+      "ATM",
+      "NETBANKING",
+      "BRANCH"
+    ],
+    "txn_types": [
+      "PURCHASE",
+      "ATM_WITHDRAWAL",
+      "CASH_ADVANCE",
+      "P2P_TRANSFER",
+      "BILL_PAYMENT",
+      "SELF_TRANSFER",
+      "INTERNATIONAL_POS",
+      "REFUND"
+    ],
+    "categories": [
+      "FOOD_GROCERY",
+      "DINING",
+      "TRAVEL",
+      "SHOPPING",
+      "ENTERTAINMENT",
+      "FUEL",
+      "UTILITIES",
+      "HEALTH",
+      "EDUCATION",
+      "GAMBLING",
+      "OTHER"
+    ],
+    "product_families": [
+      "SAVINGS",
+      "CURRENT",
+      "CREDIT_CARD",
+      "DEBIT_CARD",
+      "RECURRING_DEPOSIT",
+      "FIXED_DEPOSIT",
+      "PERSONAL_LOAN",
+      "HOME_LOAN",
+      "INSURANCE",
+      "MUTUAL_FUND"
+    ],
+    "account_types": [
+      "SAVINGS",
+      "CURRENT",
+      "CREDIT_CARD",
+      "RECURRING_DEPOSIT",
+      "FIXED_DEPOSIT",
+      "LOAN"
+    ],
+    "application_status": [
+      "SUBMITTED",
+      "APPROVED",
+      "REJECTED"
+    ],
+    "fd_actions": [
+      "RENEW",
+      "ROLLOVER",
+      "PAYOUT"
+    ],
+    "merchants": [
+      "M_SWIGGY",
+      "M_ZOMATO",
+      "M_AMAZON",
+      "M_FLIPKART",
+      "M_DREAM11",
+      "M_BETWAY",
+      "M_MAKEMYTRIP",
+      "M_BIGBASKET",
+      "M_UBER",
+      "M_NETFLIX"
+    ]
+  },
+  "templates": [
+    {
+      "kind": "RuleTemplate",
+      "code": "AVG_MONTHLY_BALANCE",
+      "version": 1,
+      "family": "MISSION",
+      "name": "Average Monthly Balance",
+      "description": "Average of end-of-day balances over the month, with two tiers. Paid when the month closes, because an average is only final then.",
+      "icon": "🏦",
+      "category": "Balances",
+      "summary": "Hold an average monthly balance of {tier1} for {points1} points, or {tier2} for {points2} points in total.",
+      "params": [
+        {
+          "name": "tier1",
+          "label": "Tier 1 average balance",
+          "type": "money",
+          "setBy": "BANK",
+          "required": true,
+          "min": 0
+        },
+        {
+          "name": "points1",
+          "label": "Tier 1 points",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "min": 0
+        },
+        {
+          "name": "tier2",
+          "label": "Tier 2 average balance",
+          "type": "money",
+          "setBy": "BANK",
+          "required": true,
+          "min": 0
+        },
+        {
+          "name": "points2",
+          "label": "Tier 2 points (total)",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "min": 0
+        },
+        {
+          "name": "accountTypes",
+          "label": "Account types",
+          "type": "enum[]",
+          "setBy": "BANK",
+          "required": true,
+          "default": [
+            "SAVINGS"
+          ],
+          "optionsFrom": "account_types"
+        }
+      ],
+      "logic": {
+        "events": [
+          "BALANCE_SNAPSHOT"
+        ],
+        "subject": "ACCOUNT",
+        "scope": {
+          "field": "event.account_type",
+          "op": "in",
+          "value": {
+            "$param": "accountTypes"
+          }
+        },
+        "measure": {
+          "type": "AVG_DAILY",
+          "field": "event.balance",
+          "dedupeBy": "event.as_of_date",
+          "denominator": "OBSERVED_DAYS"
+        },
+        "window": {
+          "type": "MONTH",
+          "graceDays": 1
+        },
+        "goal": {
+          "op": "gte",
+          "tiers": [
+            {
+              "target": {
+                "$param": "tier1"
+              },
+              "points": {
+                "$param": "points1"
+              },
+              "label": "Tier 1"
+            },
+            {
+              "target": {
+                "$param": "tier2"
+              },
+              "points": {
+                "$param": "points2"
+              },
+              "label": "Tier 2"
+            }
+          ]
+        },
+        "reward": {
+          "mode": "ON_GOAL",
+          "awardAt": "WINDOW_CLOSE",
+          "tierMode": "HIGHEST_ONLY",
+          "onReversal": "CLAWBACK"
+        },
+        "nudges": {
+          "nearGoalPct": 80
+        }
+      }
+    },
+    {
+      "kind": "RuleTemplate",
+      "code": "AVG_BALANCE_DAYS",
+      "version": 1,
+      "family": "MISSION",
+      "name": "Average Balance Maintenance",
+      "description": "Keep the end-of-day balance at or above a threshold on enough days in the calendar month. Corrected snapshots for the same date replace earlier ones.",
+      "icon": "💰",
+      "category": "Balances",
+      "summary": "Keep at least {threshold} on {days} or more days this month. Earn {points} points.",
+      "params": [
+        {
+          "name": "threshold",
+          "label": "Balance threshold",
+          "type": "money",
+          "setBy": "BANK",
+          "required": true,
+          "min": 0
+        },
+        {
+          "name": "days",
+          "label": "Days required in the month",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 20,
+          "min": 1,
+          "max": 31
+        },
+        {
+          "name": "points",
+          "label": "Points",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "min": 0
+        },
+        {
+          "name": "accountTypes",
+          "label": "Account types",
+          "type": "enum[]",
+          "setBy": "BANK",
+          "required": true,
+          "default": [
+            "SAVINGS"
+          ],
+          "optionsFrom": "account_types"
+        }
+      ],
+      "logic": {
+        "events": [
+          "BALANCE_SNAPSHOT"
+        ],
+        "subject": "ACCOUNT",
+        "scope": {
+          "field": "event.account_type",
+          "op": "in",
+          "value": {
+            "$param": "accountTypes"
+          }
+        },
+        "filter": {
+          "field": "event.balance",
+          "op": "gte",
+          "value": {
+            "$param": "threshold"
+          }
+        },
+        "measure": {
+          "type": "DISTINCT_DAYS",
+          "dedupeBy": "event.as_of_date"
+        },
+        "window": {
+          "type": "MONTH",
+          "graceDays": 1
+        },
+        "goal": {
+          "op": "gte",
+          "target": {
+            "$param": "days"
+          }
+        },
+        "reward": {
+          "mode": "ON_GOAL",
+          "points": {
+            "$param": "points"
+          },
+          "awardAt": "GOAL_MET",
+          "tierMode": "CUMULATIVE",
+          "onReversal": "CLAWBACK"
+        },
+        "nudges": {
+          "nearGoalPct": 80
+        }
+      }
+    },
+    {
+      "kind": "RuleTemplate",
+      "code": "ADDITIONAL_PRODUCT",
+      "version": 1,
+      "family": "MISSION",
+      "name": "Avail an Additional Product",
+      "description": "Rewarded on approval only, once per product family.",
+      "icon": "➕",
+      "category": "Growth",
+      "summary": "Earn {points} points when a new {families} is approved (once per product, up to {maxProducts}).",
+      "params": [
+        {
+          "name": "families",
+          "label": "Products that qualify",
+          "type": "enum[]",
+          "setBy": "BANK",
+          "required": true,
+          "default": [
+            "CREDIT_CARD",
+            "RECURRING_DEPOSIT",
+            "FIXED_DEPOSIT",
+            "INSURANCE",
+            "MUTUAL_FUND"
+          ],
+          "optionsFrom": "product_families"
+        },
+        {
+          "name": "points",
+          "label": "Points per product",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 300,
+          "min": 0
+        },
+        {
+          "name": "maxProducts",
+          "label": "Max products rewarded (lifetime)",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 3,
+          "min": 1
+        }
+      ],
+      "logic": {
+        "events": [
+          "PRODUCT_APPLICATION"
+        ],
+        "subject": "CUSTOMER",
+        "scope": {
+          "field": "event.product_family",
+          "op": "in",
+          "value": {
+            "$param": "families"
+          }
+        },
+        "filter": {
+          "field": "event.status",
+          "op": "eq",
+          "value": "APPROVED"
+        },
+        "measure": {
+          "type": "COUNT",
+          "dedupeBy": "event.product_family"
+        },
+        "window": {
+          "type": "LIFETIME",
+          "graceDays": 0
+        },
+        "reward": {
+          "mode": "PER_EVENT",
+          "points": {
+            "$param": "points"
+          },
+          "awardAt": "GOAL_MET",
+          "tierMode": "CUMULATIVE",
+          "maxAwards": {
+            "$param": "maxProducts"
+          },
+          "onReversal": "CLAWBACK"
+        },
+        "nudges": {
+          "nearGoalPct": 80
+        }
+      }
+    },
+    {
+      "kind": "RuleTemplate",
+      "code": "CATEGORY_SPEND_LIMIT",
+      "version": 1,
+      "family": "SPEND_CONTROL",
+      "name": "Merchant Category Spend Limit",
+      "description": "Category-specific thresholds: the customer picks the categories and the limit.",
+      "icon": "🏷️",
+      "category": "Spend limits",
+      "summary": "Keep spend on {categories} within {limit} per {period}. Earn {points} points for each {period} within it.",
+      "params": [
+        {
+          "name": "categories",
+          "label": "Categories",
+          "type": "enum[]",
+          "setBy": "CUSTOMER",
+          "required": true,
+          "optionsFrom": "categories"
+        },
+        {
+          "name": "limit",
+          "label": "Category limit",
+          "type": "money",
+          "setBy": "CUSTOMER",
+          "required": true,
+          "min": 100,
+          "max": 5000000,
+          "step": 100
+        },
+        {
+          "name": "period",
+          "label": "Period",
+          "type": "enum",
+          "setBy": "BANK",
+          "required": true,
+          "default": "MONTH",
+          "options": [
+            "DAY",
+            "WEEK",
+            "MONTH"
+          ]
+        },
+        {
+          "name": "action",
+          "label": "When the limit is exceeded",
+          "type": "enum",
+          "setBy": "BANK",
+          "required": true,
+          "default": "ALERT",
+          "options": [
+            "ALERT",
+            "BLOCK"
+          ]
+        },
+        {
+          "name": "warnAtPct",
+          "label": "Warn at % of limit",
+          "type": "percent",
+          "setBy": "BANK",
+          "required": true,
+          "default": 80
+        },
+        {
+          "name": "points",
+          "label": "Points per compliant period",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 50,
+          "min": 0
+        },
+        {
+          "name": "minActivity",
+          "label": "Minimum spends in the period to earn",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 3,
+          "min": 1
+        }
+      ],
+      "logic": {
+        "events": [
+          "TRANSACTION"
+        ],
+        "subject": "CUSTOMER",
+        "scope": {
+          "all": [
+            {
+              "field": "event.dr_cr",
+              "op": "eq",
+              "value": "D"
+            },
+            {
+              "field": "event.txn_type",
+              "op": "in",
+              "value": [
+                "PURCHASE",
+                "INTERNATIONAL_POS",
+                "BILL_PAYMENT"
+              ]
+            }
+          ]
+        },
+        "filter": {
+          "field": "event.category",
+          "op": "in",
+          "value": {
+            "$param": "categories"
+          }
+        },
+        "measure": {
+          "type": "SUM",
+          "field": "event.amount"
+        },
+        "window": {
+          "type": {
+            "$param": "period"
+          },
+          "graceDays": 0
+        },
+        "goal": {
+          "op": "lte",
+          "target": {
+            "$param": "limit"
+          }
+        },
+        "control": {
+          "action": {
+            "$param": "action"
+          },
+          "warnAtPct": {
+            "$param": "warnAtPct"
+          }
+        },
+        "reward": {
+          "mode": "WINDOW_COMPLIANCE",
+          "points": {
+            "$param": "points"
+          },
+          "awardAt": "GOAL_MET",
+          "tierMode": "CUMULATIVE",
+          "minActivity": {
+            "$param": "minActivity"
+          },
+          "onReversal": "CLAWBACK"
+        },
+        "nudges": {
+          "nearGoalPct": 80
+        }
+      }
+    },
+    {
+      "kind": "RuleTemplate",
+      "code": "SPEND_DIVERSITY",
+      "version": 1,
+      "family": "MISSION",
+      "name": "Cross-Product Spend Diversity",
+      "description": "Spend through several different products in the month (credit card, debit card, UPI from savings...).",
+      "icon": "🎯",
+      "category": "Extension",
+      "summary": "Spend at least {minAmount} on {distinct} different products this month. Earn {points} points.",
+      "params": [
+        {
+          "name": "distinct",
+          "label": "Different products required",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 3,
+          "min": 2
+        },
+        {
+          "name": "minAmount",
+          "label": "Minimum amount per spend",
+          "type": "money",
+          "setBy": "BANK",
+          "required": true,
+          "default": 200,
+          "min": 1
+        },
+        {
+          "name": "points",
+          "label": "Points",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 250,
+          "min": 0
+        }
+      ],
+      "logic": {
+        "events": [
+          "TRANSACTION"
+        ],
+        "subject": "CUSTOMER",
+        "scope": {
+          "field": "event.dr_cr",
+          "op": "eq",
+          "value": "D"
+        },
+        "filter": {
+          "all": [
+            {
+              "field": "event.amount",
+              "op": "gte",
+              "value": {
+                "$param": "minAmount"
+              }
+            },
+            {
+              "field": "event.product_family",
+              "op": "exists"
+            }
+          ]
+        },
+        "measure": {
+          "type": "COUNT_DISTINCT",
+          "field": "event.product_family"
+        },
+        "window": {
+          "type": "MONTH",
+          "graceDays": 0
+        },
+        "goal": {
+          "op": "gte",
+          "target": {
+            "$param": "distinct"
+          }
+        },
+        "reward": {
+          "mode": "ON_GOAL",
+          "points": {
+            "$param": "points"
+          },
+          "awardAt": "GOAL_MET",
+          "tierMode": "CUMULATIVE",
+          "onReversal": "CLAWBACK"
+        },
+        "nudges": {
+          "nearGoalPct": 80
+        }
+      }
+    },
+    {
+      "kind": "RuleTemplate",
+      "code": "DORMANCY_PREVENTION",
+      "version": 1,
+      "family": "MISSION",
+      "name": "Dormancy Prevention",
+      "description": "Win back customers at risk of going dormant: transact on a few separate days this month. Target at-risk customers through the rule's eligibility.",
+      "icon": "💤",
+      "category": "Extension",
+      "summary": "Transact at least {minAmount} on {activeDays} different days this month. Earn {points} points.",
+      "params": [
+        {
+          "name": "activeDays",
+          "label": "Active days required",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 2,
+          "min": 1,
+          "max": 31
+        },
+        {
+          "name": "minAmount",
+          "label": "Minimum amount per transaction",
+          "type": "money",
+          "setBy": "BANK",
+          "required": true,
+          "default": 100,
+          "min": 1
+        },
+        {
+          "name": "points",
+          "label": "Points",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 100,
+          "min": 0
+        }
+      ],
+      "logic": {
+        "events": [
+          "TRANSACTION"
+        ],
+        "subject": "CUSTOMER",
+        "scope": {
+          "all": [
+            {
+              "field": "event.dr_cr",
+              "op": "eq",
+              "value": "D"
+            },
+            {
+              "field": "event.txn_type",
+              "op": "not_in",
+              "value": [
+                "SELF_TRANSFER",
+                "REFUND"
+              ]
+            }
+          ]
+        },
+        "filter": {
+          "field": "event.amount",
+          "op": "gte",
+          "value": {
+            "$param": "minAmount"
+          }
+        },
+        "measure": {
+          "type": "DISTINCT_DAYS"
+        },
+        "window": {
+          "type": "MONTH",
+          "graceDays": 0
+        },
+        "goal": {
+          "op": "gte",
+          "target": {
+            "$param": "activeDays"
+          }
+        },
+        "reward": {
+          "mode": "ON_GOAL",
+          "points": {
+            "$param": "points"
+          },
+          "awardAt": "GOAL_MET",
+          "tierMode": "CUMULATIVE",
+          "onReversal": "CLAWBACK"
+        },
+        "nudges": {
+          "nearGoalPct": 80
+        }
+      }
+    },
+    {
+      "kind": "RuleTemplate",
+      "code": "DAILY_SPEND_LIMIT",
+      "version": 1,
+      "family": "SPEND_CONTROL",
+      "name": "Daily Spend Limit",
+      "description": "Customer-configured cap on total daily spend, evaluated in real time on every transaction.",
+      "icon": "💳",
+      "category": "Spend limits",
+      "summary": "Keep total daily spend on {channels} within {limit}. Earn {points} points for each day you stay within it.",
+      "params": [
+        {
+          "name": "limit",
+          "label": "Daily limit",
+          "type": "money",
+          "setBy": "CUSTOMER",
+          "required": true,
+          "min": 100,
+          "max": 1000000,
+          "step": 100
+        },
+        {
+          "name": "channels",
+          "label": "Channels covered",
+          "type": "enum[]",
+          "setBy": "BANK",
+          "required": true,
+          "default": [
+            "CARD_POS",
+            "CARD_ONLINE",
+            "UPI"
+          ],
+          "optionsFrom": "channels"
+        },
+        {
+          "name": "action",
+          "label": "When the limit is exceeded",
+          "type": "enum",
+          "setBy": "BANK",
+          "required": true,
+          "default": "ALERT",
+          "options": [
+            "ALERT",
+            "BLOCK"
+          ]
+        },
+        {
+          "name": "warnAtPct",
+          "label": "Warn at % of limit",
+          "type": "percent",
+          "setBy": "BANK",
+          "required": true,
+          "default": 80
+        },
+        {
+          "name": "points",
+          "label": "Points per compliant day",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 10,
+          "min": 0
+        },
+        {
+          "name": "minActivity",
+          "label": "Minimum transactions in the day to earn",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 1,
+          "min": 1
+        }
+      ],
+      "logic": {
+        "events": [
+          "TRANSACTION"
+        ],
+        "subject": "CUSTOMER",
+        "scope": {
+          "all": [
+            {
+              "field": "event.dr_cr",
+              "op": "eq",
+              "value": "D"
+            },
+            {
+              "field": "event.channel",
+              "op": "in",
+              "value": {
+                "$param": "channels"
+              }
+            },
+            {
+              "field": "event.txn_type",
+              "op": "not_in",
+              "value": [
+                "SELF_TRANSFER",
+                "REFUND"
+              ]
+            }
+          ]
+        },
+        "measure": {
+          "type": "SUM",
+          "field": "event.amount"
+        },
+        "window": {
+          "type": "DAY",
+          "graceDays": 0
+        },
+        "goal": {
+          "op": "lte",
+          "target": {
+            "$param": "limit"
+          }
+        },
+        "control": {
+          "action": {
+            "$param": "action"
+          },
+          "warnAtPct": {
+            "$param": "warnAtPct"
+          }
+        },
+        "reward": {
+          "mode": "WINDOW_COMPLIANCE",
+          "points": {
+            "$param": "points"
+          },
+          "awardAt": "GOAL_MET",
+          "tierMode": "CUMULATIVE",
+          "minActivity": {
+            "$param": "minActivity"
+          },
+          "onReversal": "CLAWBACK"
+        },
+        "nudges": {
+          "nearGoalPct": 80
+        }
+      }
+    },
+    {
+      "kind": "RuleTemplate",
+      "code": "FD_RENEWAL",
+      "version": 1,
+      "family": "MISSION",
+      "name": "FD Renewal / Rollover",
+      "description": "Reward keeping money with the bank at maturity, in proportion to the amount renewed.",
+      "icon": "🔄",
+      "category": "Extension",
+      "summary": "Renew or roll over a fixed deposit of at least {minAmount}: {pointsPer} points per {perAmount}, up to {capPerYear} points a year.",
+      "params": [
+        {
+          "name": "actions",
+          "label": "Qualifying actions",
+          "type": "enum[]",
+          "setBy": "BANK",
+          "required": true,
+          "default": [
+            "RENEW",
+            "ROLLOVER"
+          ],
+          "optionsFrom": "fd_actions"
+        },
+        {
+          "name": "minAmount",
+          "label": "Minimum amount",
+          "type": "money",
+          "setBy": "BANK",
+          "required": true,
+          "default": 50000,
+          "min": 0
+        },
+        {
+          "name": "pointsPer",
+          "label": "Points per unit",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 10,
+          "min": 0
+        },
+        {
+          "name": "perAmount",
+          "label": "Unit amount",
+          "type": "money",
+          "setBy": "BANK",
+          "required": true,
+          "default": 10000,
+          "min": 1
+        },
+        {
+          "name": "capPerYear",
+          "label": "Cap per year (points)",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 2000,
+          "min": 0
+        }
+      ],
+      "logic": {
+        "events": [
+          "FD_MATURITY"
+        ],
+        "subject": "CUSTOMER",
+        "filter": {
+          "all": [
+            {
+              "field": "event.action",
+              "op": "in",
+              "value": {
+                "$param": "actions"
+              }
+            },
+            {
+              "field": "event.amount",
+              "op": "gte",
+              "value": {
+                "$param": "minAmount"
+              }
+            }
+          ]
+        },
+        "measure": {
+          "type": "SUM",
+          "field": "event.amount",
+          "dedupeBy": "event.maturity_id"
+        },
+        "window": {
+          "type": "YEAR",
+          "graceDays": 0
+        },
+        "reward": {
+          "mode": "PER_EVENT",
+          "points": {
+            "$param": "pointsPer"
+          },
+          "perAmount": {
+            "$param": "perAmount"
+          },
+          "awardAt": "GOAL_MET",
+          "tierMode": "CUMULATIVE",
+          "capPointsPerWindow": {
+            "$param": "capPerYear"
+          },
+          "onReversal": "CLAWBACK"
+        },
+        "nudges": {
+          "nearGoalPct": 80
+        }
+      }
+    },
+    {
+      "kind": "RuleTemplate",
+      "code": "MERCHANT_RESTRICTION",
+      "version": 1,
+      "family": "SPEND_CONTROL",
+      "name": "Merchant Restrictions",
+      "description": "Block specific merchants entirely. Any spend at a blocked merchant is a breach.",
+      "icon": "🚫",
+      "category": "Restrictions",
+      "summary": "No spend at {merchants}. Earn {points} points for each {period} with none.",
+      "params": [
+        {
+          "name": "merchants",
+          "label": "Blocked merchants",
+          "type": "string[]",
+          "setBy": "CUSTOMER",
+          "required": true,
+          "description": "Merchant IDs the customer wants to block."
+        },
+        {
+          "name": "action",
+          "label": "On a blocked merchant",
+          "type": "enum",
+          "setBy": "BANK",
+          "required": true,
+          "default": "BLOCK",
+          "options": [
+            "ALERT",
+            "BLOCK"
+          ]
+        },
+        {
+          "name": "period",
+          "label": "Reward period",
+          "type": "enum",
+          "setBy": "BANK",
+          "required": true,
+          "default": "MONTH",
+          "options": [
+            "WEEK",
+            "MONTH"
+          ]
+        },
+        {
+          "name": "points",
+          "label": "Points per clean period",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 25,
+          "min": 0
+        },
+        {
+          "name": "minActivity",
+          "label": "Minimum spends in the period to earn",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 5,
+          "min": 1
+        }
+      ],
+      "logic": {
+        "events": [
+          "TRANSACTION"
+        ],
+        "subject": "CUSTOMER",
+        "scope": {
+          "field": "event.dr_cr",
+          "op": "eq",
+          "value": "D"
+        },
+        "filter": {
+          "field": "event.merchant_id",
+          "op": "in",
+          "value": {
+            "$param": "merchants"
+          }
+        },
+        "measure": {
+          "type": "COUNT"
+        },
+        "window": {
+          "type": {
+            "$param": "period"
+          },
+          "graceDays": 0
+        },
+        "goal": {
+          "op": "lte",
+          "target": 0
+        },
+        "control": {
+          "action": {
+            "$param": "action"
+          }
+        },
+        "reward": {
+          "mode": "WINDOW_COMPLIANCE",
+          "points": {
+            "$param": "points"
+          },
+          "awardAt": "GOAL_MET",
+          "tierMode": "CUMULATIVE",
+          "minActivity": {
+            "$param": "minActivity"
+          },
+          "onReversal": "CLAWBACK"
+        },
+        "nudges": {
+          "nearGoalPct": 80
+        }
+      }
+    },
+    {
+      "kind": "RuleTemplate",
+      "code": "MONTHLY_SPEND_LIMIT",
+      "version": 1,
+      "family": "SPEND_CONTROL",
+      "name": "Monthly Spend Limit",
+      "description": "Aggregate spend cap over a calendar month or a rolling 30-day window.",
+      "icon": "📅",
+      "category": "Spend limits",
+      "summary": "Keep spend within {limit} per {windowType} window. Earn {points} points for each calendar month within it.",
+      "params": [
+        {
+          "name": "limit",
+          "label": "Monthly limit",
+          "type": "money",
+          "setBy": "CUSTOMER",
+          "required": true,
+          "min": 1000,
+          "max": 10000000,
+          "step": 500
+        },
+        {
+          "name": "windowType",
+          "label": "Window",
+          "type": "enum",
+          "setBy": "BANK",
+          "required": true,
+          "default": "MONTH",
+          "options": [
+            "MONTH",
+            "ROLLING_DAYS"
+          ],
+          "description": "MONTH = calendar month. ROLLING_DAYS = the last 30 days, re-evaluated on every transaction."
+        },
+        {
+          "name": "channels",
+          "label": "Channels covered",
+          "type": "enum[]",
+          "setBy": "BANK",
+          "required": true,
+          "default": [
+            "CARD_POS",
+            "CARD_ONLINE",
+            "UPI",
+            "NETBANKING"
+          ],
+          "optionsFrom": "channels"
+        },
+        {
+          "name": "action",
+          "label": "When the limit is exceeded",
+          "type": "enum",
+          "setBy": "BANK",
+          "required": true,
+          "default": "ALERT",
+          "options": [
+            "ALERT",
+            "BLOCK"
+          ]
+        },
+        {
+          "name": "warnAtPct",
+          "label": "Warn at % of limit",
+          "type": "percent",
+          "setBy": "BANK",
+          "required": true,
+          "default": 80
+        },
+        {
+          "name": "points",
+          "label": "Points per compliant month",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 100,
+          "min": 0
+        },
+        {
+          "name": "minActivity",
+          "label": "Minimum transactions in the month to earn",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 5,
+          "min": 1
+        }
+      ],
+      "logic": {
+        "events": [
+          "TRANSACTION"
+        ],
+        "subject": "CUSTOMER",
+        "scope": {
+          "all": [
+            {
+              "field": "event.dr_cr",
+              "op": "eq",
+              "value": "D"
+            },
+            {
+              "field": "event.channel",
+              "op": "in",
+              "value": {
+                "$param": "channels"
+              }
+            },
+            {
+              "field": "event.txn_type",
+              "op": "not_in",
+              "value": [
+                "SELF_TRANSFER",
+                "REFUND"
+              ]
+            }
+          ]
+        },
+        "measure": {
+          "type": "SUM",
+          "field": "event.amount"
+        },
+        "window": {
+          "type": {
+            "$param": "windowType"
+          },
+          "days": 30,
+          "period": "MONTH",
+          "graceDays": 0
+        },
+        "goal": {
+          "op": "lte",
+          "target": {
+            "$param": "limit"
+          }
+        },
+        "control": {
+          "action": {
+            "$param": "action"
+          },
+          "warnAtPct": {
+            "$param": "warnAtPct"
+          }
+        },
+        "reward": {
+          "mode": "WINDOW_COMPLIANCE",
+          "points": {
+            "$param": "points"
+          },
+          "awardAt": "GOAL_MET",
+          "tierMode": "CUMULATIVE",
+          "minActivity": {
+            "$param": "minActivity"
+          },
+          "onReversal": "CLAWBACK"
+        },
+        "nudges": {
+          "nearGoalPct": 80
+        }
+      }
+    },
+    {
+      "kind": "RuleTemplate",
+      "code": "RD_COMPLETION",
+      "version": 1,
+      "family": "MISSION",
+      "name": "RD Timeline Completion",
+      "description": "Full-term milestone: the recurring deposit matures without premature closure. Paid once per RD account.",
+      "icon": "🏁",
+      "category": "Savings habits",
+      "summary": "Complete an RD of at least {minTenure} months with no more than {maxMissed} missed installments. Earn {points} points.",
+      "params": [
+        {
+          "name": "points",
+          "label": "Points",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 1000,
+          "min": 0
+        },
+        {
+          "name": "maxMissed",
+          "label": "Max missed installments",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 0,
+          "min": 0
+        },
+        {
+          "name": "minTenure",
+          "label": "Minimum tenure (months)",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 6,
+          "min": 1
+        }
+      ],
+      "logic": {
+        "events": [
+          "RD_MATURITY"
+        ],
+        "subject": "ACCOUNT",
+        "filter": {
+          "all": [
+            {
+              "field": "event.status",
+              "op": "eq",
+              "value": "COMPLETED"
+            },
+            {
+              "field": "event.installments_missed",
+              "op": "lte",
+              "value": {
+                "$param": "maxMissed"
+              }
+            },
+            {
+              "field": "event.tenure_months",
+              "op": "gte",
+              "value": {
+                "$param": "minTenure"
+              }
+            }
+          ]
+        },
+        "measure": {
+          "type": "COUNT"
+        },
+        "window": {
+          "type": "LIFETIME",
+          "graceDays": 0
+        },
+        "goal": {
+          "op": "gte",
+          "target": 1
+        },
+        "reward": {
+          "mode": "ON_GOAL",
+          "points": {
+            "$param": "points"
+          },
+          "awardAt": "GOAL_MET",
+          "tierMode": "CUMULATIVE",
+          "maxAwards": 1,
+          "onReversal": "CLAWBACK"
+        },
+        "nudges": {
+          "nearGoalPct": 80
+        }
+      }
+    },
+    {
+      "kind": "RuleTemplate",
+      "code": "RD_PAYMENT_STREAK",
+      "version": 1,
+      "family": "MISSION",
+      "name": "RD Payment Streak",
+      "description": "Consecutive on-time recurring deposit installments. A late installment or a missed month resets the streak; milestones can be earned again on a new streak.",
+      "icon": "📈",
+      "category": "Savings habits",
+      "summary": "Pay your RD on time every month: {m1} in a row earns {p1} points, {m2} earns {p2}, {m3} earns {p3}.",
+      "params": [
+        {
+          "name": "m1",
+          "label": "Milestone 1 (months)",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 3,
+          "min": 1
+        },
+        {
+          "name": "p1",
+          "label": "Milestone 1 points",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 100,
+          "min": 0
+        },
+        {
+          "name": "m2",
+          "label": "Milestone 2 (months)",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 6,
+          "min": 1
+        },
+        {
+          "name": "p2",
+          "label": "Milestone 2 points",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 250,
+          "min": 0
+        },
+        {
+          "name": "m3",
+          "label": "Milestone 3 (months)",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 12,
+          "min": 1
+        },
+        {
+          "name": "p3",
+          "label": "Milestone 3 points",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 600,
+          "min": 0
+        }
+      ],
+      "logic": {
+        "events": [
+          "RD_INSTALLMENT"
+        ],
+        "subject": "ACCOUNT",
+        "filter": {
+          "field": "event.on_time",
+          "op": "eq",
+          "value": true
+        },
+        "measure": {
+          "type": "STREAK",
+          "streakPeriod": "MONTH",
+          "breakWhen": {
+            "field": "event.on_time",
+            "op": "eq",
+            "value": false
+          }
+        },
+        "window": {
+          "type": "LIFETIME",
+          "graceDays": 0
+        },
+        "goal": {
+          "op": "gte",
+          "tiers": [
+            {
+              "target": {
+                "$param": "m1"
+              },
+              "points": {
+                "$param": "p1"
+              },
+              "label": "Milestone 1"
+            },
+            {
+              "target": {
+                "$param": "m2"
+              },
+              "points": {
+                "$param": "p2"
+              },
+              "label": "Milestone 2"
+            },
+            {
+              "target": {
+                "$param": "m3"
+              },
+              "points": {
+                "$param": "p3"
+              },
+              "label": "Milestone 3"
+            }
+          ]
+        },
+        "reward": {
+          "mode": "ON_GOAL",
+          "awardAt": "GOAL_MET",
+          "tierMode": "CUMULATIVE",
+          "onReversal": "CLAWBACK"
+        },
+        "nudges": {
+          "nearGoalPct": 60
+        }
+      }
+    },
+    {
+      "kind": "RuleTemplate",
+      "code": "REFER_A_CUSTOMER",
+      "version": 1,
+      "family": "MISSION",
+      "name": "Refer a Customer",
+      "description": "Rewarded on approval only. Each referral is rewarded once; a later rejection of the same referral claws the points back.",
+      "icon": "🤝",
+      "category": "Growth",
+      "summary": "Earn {points} points for every referred customer whose account is approved (up to {maxPerYear} a year).",
+      "params": [
+        {
+          "name": "points",
+          "label": "Points per approved referral",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 500,
+          "min": 0
+        },
+        {
+          "name": "maxPerYear",
+          "label": "Max rewarded referrals per year",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 5,
+          "min": 1
+        }
+      ],
+      "logic": {
+        "events": [
+          "REFERRAL"
+        ],
+        "subject": "CUSTOMER",
+        "filter": {
+          "field": "event.status",
+          "op": "eq",
+          "value": "APPROVED"
+        },
+        "measure": {
+          "type": "COUNT",
+          "dedupeBy": "event.referral_id"
+        },
+        "window": {
+          "type": "YEAR",
+          "graceDays": 0
+        },
+        "reward": {
+          "mode": "PER_EVENT",
+          "points": {
+            "$param": "points"
+          },
+          "awardAt": "GOAL_MET",
+          "tierMode": "CUMULATIVE",
+          "maxAwardsPerWindow": {
+            "$param": "maxPerYear"
+          },
+          "onReversal": "CLAWBACK"
+        },
+        "nudges": {
+          "nearGoalPct": 80
+        }
+      }
+    },
+    {
+      "kind": "RuleTemplate",
+      "code": "TIMING_RESTRICTION",
+      "version": 1,
+      "family": "SPEND_CONTROL",
+      "name": "Timing Restrictions",
+      "description": "Restricted hours chosen by the customer, evaluated in the customer's own timezone. Ranges may cross midnight.",
+      "icon": "🕐",
+      "category": "Restrictions",
+      "summary": "No spend on {channels} between {from} and {to} (your local time). Earn {points} points for each {period} with none.",
+      "params": [
+        {
+          "name": "from",
+          "label": "Start time",
+          "type": "time",
+          "setBy": "CUSTOMER",
+          "required": true,
+          "default": "23:00"
+        },
+        {
+          "name": "to",
+          "label": "End time",
+          "type": "time",
+          "setBy": "CUSTOMER",
+          "required": true,
+          "default": "06:00"
+        },
+        {
+          "name": "channels",
+          "label": "Channels covered",
+          "type": "enum[]",
+          "setBy": "BANK",
+          "required": true,
+          "default": [
+            "CARD_POS",
+            "CARD_ONLINE",
+            "UPI"
+          ],
+          "optionsFrom": "channels"
+        },
+        {
+          "name": "action",
+          "label": "Inside restricted hours",
+          "type": "enum",
+          "setBy": "BANK",
+          "required": true,
+          "default": "ALERT",
+          "options": [
+            "ALERT",
+            "BLOCK"
+          ]
+        },
+        {
+          "name": "period",
+          "label": "Reward period",
+          "type": "enum",
+          "setBy": "BANK",
+          "required": true,
+          "default": "WEEK",
+          "options": [
+            "DAY",
+            "WEEK",
+            "MONTH"
+          ]
+        },
+        {
+          "name": "points",
+          "label": "Points per clean period",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 15,
+          "min": 0
+        },
+        {
+          "name": "minActivity",
+          "label": "Minimum spends in the period to earn",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 3,
+          "min": 1
+        }
+      ],
+      "logic": {
+        "events": [
+          "TRANSACTION"
+        ],
+        "subject": "CUSTOMER",
+        "scope": {
+          "all": [
+            {
+              "field": "event.dr_cr",
+              "op": "eq",
+              "value": "D"
+            },
+            {
+              "field": "event.channel",
+              "op": "in",
+              "value": {
+                "$param": "channels"
+              }
+            }
+          ]
+        },
+        "filter": {
+          "field": "event.local.time",
+          "op": "time_between",
+          "value": [
+            {
+              "$param": "from"
+            },
+            {
+              "$param": "to"
+            }
+          ]
+        },
+        "measure": {
+          "type": "COUNT"
+        },
+        "window": {
+          "type": {
+            "$param": "period"
+          },
+          "timezone": "CUSTOMER",
+          "graceDays": 0
+        },
+        "goal": {
+          "op": "lte",
+          "target": 0
+        },
+        "control": {
+          "action": {
+            "$param": "action"
+          }
+        },
+        "reward": {
+          "mode": "WINDOW_COMPLIANCE",
+          "points": {
+            "$param": "points"
+          },
+          "awardAt": "GOAL_MET",
+          "tierMode": "CUMULATIVE",
+          "minActivity": {
+            "$param": "minActivity"
+          },
+          "onReversal": "CLAWBACK"
+        },
+        "nudges": {
+          "nearGoalPct": 80
+        }
+      }
+    },
+    {
+      "kind": "RuleTemplate",
+      "code": "TXN_TYPE_RESTRICTION",
+      "version": 1,
+      "family": "SPEND_CONTROL",
+      "name": "Transaction Type Restrictions",
+      "description": "Block whole transaction types, for example cash withdrawals or international spends.",
+      "icon": "⛔",
+      "category": "Restrictions",
+      "summary": "Make no transactions of these types: {blockedTypes}. Earn {points} points for each {period} with none.",
+      "params": [
+        {
+          "name": "blockedTypes",
+          "label": "Blocked transaction types",
+          "type": "enum[]",
+          "setBy": "CUSTOMER",
+          "required": true,
+          "optionsFrom": "txn_types"
+        },
+        {
+          "name": "action",
+          "label": "On a blocked type",
+          "type": "enum",
+          "setBy": "BANK",
+          "required": true,
+          "default": "BLOCK",
+          "options": [
+            "ALERT",
+            "BLOCK"
+          ]
+        },
+        {
+          "name": "period",
+          "label": "Reward period",
+          "type": "enum",
+          "setBy": "BANK",
+          "required": true,
+          "default": "MONTH",
+          "options": [
+            "WEEK",
+            "MONTH"
+          ]
+        },
+        {
+          "name": "points",
+          "label": "Points per clean period",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 25,
+          "min": 0
+        },
+        {
+          "name": "minActivity",
+          "label": "Minimum transactions in the period to earn",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 5,
+          "min": 1
+        }
+      ],
+      "logic": {
+        "events": [
+          "TRANSACTION"
+        ],
+        "subject": "CUSTOMER",
+        "scope": {
+          "field": "event.dr_cr",
+          "op": "eq",
+          "value": "D"
+        },
+        "filter": {
+          "field": "event.txn_type",
+          "op": "in",
+          "value": {
+            "$param": "blockedTypes"
+          }
+        },
+        "measure": {
+          "type": "COUNT"
+        },
+        "window": {
+          "type": {
+            "$param": "period"
+          },
+          "graceDays": 0
+        },
+        "goal": {
+          "op": "lte",
+          "target": 0
+        },
+        "control": {
+          "action": {
+            "$param": "action"
+          }
+        },
+        "reward": {
+          "mode": "WINDOW_COMPLIANCE",
+          "points": {
+            "$param": "points"
+          },
+          "awardAt": "GOAL_MET",
+          "tierMode": "CUMULATIVE",
+          "minActivity": {
+            "$param": "minActivity"
+          },
+          "onReversal": "CLAWBACK"
+        },
+        "nudges": {
+          "nearGoalPct": 80
+        }
+      }
+    },
+    {
+      "kind": "RuleTemplate",
+      "code": "UPI_TXN_COUNT",
+      "version": 1,
+      "family": "MISSION",
+      "name": "UPI Transaction Count",
+      "description": "Genuine UPI usage, not just registration: a minimum amount, no self-transfers, and a daily cap on how many payments count.",
+      "icon": "📱",
+      "category": "Usage",
+      "summary": "Make {target} UPI payments of at least {minAmount} this month (max {maxPerDay} a day count). Earn {points} points.",
+      "params": [
+        {
+          "name": "target",
+          "label": "Payments required",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 10,
+          "min": 1
+        },
+        {
+          "name": "points",
+          "label": "Points",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 150,
+          "min": 0
+        },
+        {
+          "name": "minAmount",
+          "label": "Minimum payment amount",
+          "type": "money",
+          "setBy": "BANK",
+          "required": true,
+          "default": 50,
+          "min": 1
+        },
+        {
+          "name": "maxPerDay",
+          "label": "Max payments counted per day",
+          "type": "integer",
+          "setBy": "BANK",
+          "required": true,
+          "default": 3,
+          "min": 1
+        }
+      ],
+      "logic": {
+        "events": [
+          "TRANSACTION"
+        ],
+        "subject": "CUSTOMER",
+        "scope": {
+          "all": [
+            {
+              "field": "event.channel",
+              "op": "eq",
+              "value": "UPI"
+            },
+            {
+              "field": "event.dr_cr",
+              "op": "eq",
+              "value": "D"
+            },
+            {
+              "field": "event.txn_type",
+              "op": "not_in",
+              "value": [
+                "SELF_TRANSFER",
+                "REFUND"
+              ]
+            }
+          ]
+        },
+        "filter": {
+          "field": "event.amount",
+          "op": "gte",
+          "value": {
+            "$param": "minAmount"
+          }
+        },
+        "measure": {
+          "type": "COUNT",
+          "perDayCap": {
+            "$param": "maxPerDay"
+          }
+        },
+        "window": {
+          "type": "MONTH",
+          "graceDays": 0
+        },
+        "goal": {
+          "op": "gte",
+          "target": {
+            "$param": "target"
+          }
+        },
+        "reward": {
+          "mode": "ON_GOAL",
+          "points": {
+            "$param": "points"
+          },
+          "awardAt": "GOAL_MET",
+          "tierMode": "CUMULATIVE",
+          "onReversal": "CLAWBACK"
+        },
+        "nudges": {
+          "nearGoalPct": 70
+        }
+      }
+    }
+  ],
+  "rules": [
+    {
+      "kind": "Rule",
+      "code": "AMB_AVG_AFFLUENT",
+      "version": 1,
+      "template": "AVG_MONTHLY_BALANCE",
+      "name": "Average Monthly Balance – Affluent",
+      "description": "",
+      "status": "ACTIVE",
+      "segments": [
+        "AFFLUENT"
+      ],
+      "enrollment": "AUTO",
+      "params": {
+        "tier1": 500000,
+        "points1": 300,
+        "tier2": 1000000,
+        "points2": 700
+      },
+      "customerParams": {},
+      "settingsPolicy": {
+        "changeEffective": "NEXT_WINDOW",
+        "cooldownDays": 0
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": false,
+      "tags": []
+    },
+    {
+      "kind": "Rule",
+      "code": "AMB_DAYS_AFFLUENT",
+      "version": 1,
+      "template": "AVG_BALANCE_DAYS",
+      "name": "Balance ₹2L for 20 days – Affluent",
+      "description": "",
+      "status": "ACTIVE",
+      "segments": [
+        "AFFLUENT"
+      ],
+      "enrollment": "AUTO",
+      "params": {
+        "threshold": 200000,
+        "days": 20,
+        "points": 500
+      },
+      "customerParams": {},
+      "settingsPolicy": {
+        "changeEffective": "NEXT_WINDOW",
+        "cooldownDays": 0
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": false,
+      "tags": []
+    },
+    {
+      "kind": "Rule",
+      "code": "AMB_DAYS_MASS",
+      "version": 1,
+      "template": "AVG_BALANCE_DAYS",
+      "name": "Balance ₹10K for 20 days – Mass",
+      "description": "",
+      "status": "ACTIVE",
+      "segments": [
+        "MASS",
+        "YOUTH"
+      ],
+      "enrollment": "AUTO",
+      "params": {
+        "threshold": 10000,
+        "days": 20,
+        "points": 200
+      },
+      "customerParams": {},
+      "settingsPolicy": {
+        "changeEffective": "NEXT_WINDOW",
+        "cooldownDays": 0
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": false,
+      "tags": []
+    },
+    {
+      "kind": "Rule",
+      "code": "CROSS_SELL_STD",
+      "version": 1,
+      "template": "ADDITIONAL_PRODUCT",
+      "name": "Add a Product",
+      "description": "",
+      "status": "ACTIVE",
+      "segments": [],
+      "enrollment": "AUTO",
+      "params": {
+        "points": 300,
+        "maxProducts": 3
+      },
+      "customerParams": {},
+      "settingsPolicy": {
+        "changeEffective": "NEXT_WINDOW",
+        "cooldownDays": 0
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": false,
+      "tags": []
+    },
+    {
+      "kind": "Rule",
+      "code": "CSL_AFFLUENT",
+      "version": 1,
+      "template": "CATEGORY_SPEND_LIMIT",
+      "name": "Category Limit – Travel & Dining focus",
+      "description": "",
+      "status": "ACTIVE",
+      "segments": [
+        "AFFLUENT"
+      ],
+      "enrollment": "AUTO",
+      "params": {
+        "period": "MONTH",
+        "points": 75,
+        "minActivity": 3
+      },
+      "customerParams": {
+        "categories": {
+          "options": [
+            "TRAVEL",
+            "DINING",
+            "SHOPPING",
+            "ENTERTAINMENT"
+          ],
+          "default": [
+            "TRAVEL",
+            "DINING"
+          ],
+          "maxItems": 4
+        },
+        "limit": {
+          "min": 10000,
+          "max": 1000000,
+          "step": 1000,
+          "default": 150000
+        }
+      },
+      "settingsPolicy": {
+        "changeEffective": "NEXT_WINDOW",
+        "cooldownDays": 0
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": false,
+      "tags": [
+        "emphasis:travel-dining"
+      ]
+    },
+    {
+      "kind": "Rule",
+      "code": "CSL_MASS",
+      "version": 1,
+      "template": "CATEGORY_SPEND_LIMIT",
+      "name": "Category Limit – Food & Groceries focus",
+      "description": "",
+      "status": "ACTIVE",
+      "segments": [
+        "MASS",
+        "YOUTH"
+      ],
+      "enrollment": "AUTO",
+      "params": {
+        "period": "MONTH",
+        "points": 50,
+        "minActivity": 3
+      },
+      "customerParams": {
+        "categories": {
+          "options": [
+            "FOOD_GROCERY",
+            "DINING",
+            "SHOPPING",
+            "ENTERTAINMENT",
+            "FUEL"
+          ],
+          "default": [
+            "FOOD_GROCERY"
+          ],
+          "maxItems": 3
+        },
+        "limit": {
+          "min": 500,
+          "max": 50000,
+          "step": 100,
+          "default": 8000
+        }
+      },
+      "settingsPolicy": {
+        "changeEffective": "NEXT_WINDOW",
+        "cooldownDays": 0
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": false,
+      "tags": [
+        "emphasis:food-groceries"
+      ]
+    },
+    {
+      "kind": "Rule",
+      "code": "DIVERSITY_STD",
+      "version": 1,
+      "template": "SPEND_DIVERSITY",
+      "name": "Use 3 Products",
+      "description": "",
+      "status": "ACTIVE",
+      "segments": [],
+      "enrollment": "OPT_IN",
+      "params": {
+        "distinct": 3,
+        "minAmount": 200,
+        "points": 250
+      },
+      "customerParams": {},
+      "settingsPolicy": {
+        "changeEffective": "NEXT_WINDOW",
+        "cooldownDays": 0
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": false,
+      "tags": []
+    },
+    {
+      "kind": "Rule",
+      "code": "DORMANCY_WINBACK",
+      "version": 1,
+      "template": "DORMANCY_PREVENTION",
+      "name": "Welcome Back",
+      "description": "",
+      "status": "ACTIVE",
+      "segments": [],
+      "eligibility": {
+        "field": "customer.dormancy_risk",
+        "op": "eq",
+        "value": true
+      },
+      "enrollment": "AUTO",
+      "params": {
+        "activeDays": 2,
+        "minAmount": 100,
+        "points": 100
+      },
+      "customerParams": {},
+      "settingsPolicy": {
+        "changeEffective": "NEXT_WINDOW",
+        "cooldownDays": 0
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": false,
+      "tags": []
+    },
+    {
+      "kind": "Rule",
+      "code": "DSL_AFFLUENT",
+      "version": 1,
+      "template": "DAILY_SPEND_LIMIT",
+      "name": "Daily Spend Limit – Affluent",
+      "description": "",
+      "status": "ACTIVE",
+      "segments": [
+        "AFFLUENT"
+      ],
+      "enrollment": "AUTO",
+      "params": {
+        "channels": [
+          "CARD_POS",
+          "CARD_ONLINE",
+          "UPI",
+          "NETBANKING"
+        ],
+        "action": "ALERT",
+        "warnAtPct": 90,
+        "points": 15,
+        "minActivity": 1
+      },
+      "customerParams": {
+        "limit": {
+          "min": 10000,
+          "max": 500000,
+          "step": 1000,
+          "default": 200000
+        }
+      },
+      "settingsPolicy": {
+        "changeEffective": "NEXT_WINDOW",
+        "cooldownDays": 0
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": false,
+      "tags": [
+        "segment:affluent"
+      ]
+    },
+    {
+      "kind": "Rule",
+      "code": "DSL_MASS",
+      "version": 1,
+      "template": "DAILY_SPEND_LIMIT",
+      "name": "Daily Spend Limit – Mass",
+      "description": "Daily cap for Mass and Youth customers.",
+      "status": "ACTIVE",
+      "segments": [
+        "MASS",
+        "YOUTH"
+      ],
+      "enrollment": "AUTO",
+      "params": {
+        "channels": [
+          "CARD_POS",
+          "CARD_ONLINE",
+          "UPI"
+        ],
+        "action": "ALERT",
+        "warnAtPct": 80,
+        "points": 10,
+        "minActivity": 1
+      },
+      "customerParams": {
+        "limit": {
+          "min": 500,
+          "max": 25000,
+          "step": 100,
+          "default": 3000
+        }
+      },
+      "settingsPolicy": {
+        "changeEffective": "NEXT_WINDOW",
+        "cooldownDays": 0
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": false,
+      "tags": [
+        "segment:mass"
+      ]
+    },
+    {
+      "kind": "Rule",
+      "code": "FD_RENEW_AFFLUENT",
+      "version": 1,
+      "template": "FD_RENEWAL",
+      "name": "FD Renewal Bonus – Affluent",
+      "description": "",
+      "status": "ACTIVE",
+      "segments": [
+        "AFFLUENT"
+      ],
+      "enrollment": "AUTO",
+      "params": {
+        "minAmount": 100000,
+        "pointsPer": 10,
+        "perAmount": 10000,
+        "capPerYear": 2000
+      },
+      "customerParams": {},
+      "settingsPolicy": {
+        "changeEffective": "NEXT_WINDOW",
+        "cooldownDays": 0
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": false,
+      "tags": []
+    },
+    {
+      "kind": "Rule",
+      "code": "MERCHANT_BLOCK_STD",
+      "version": 1,
+      "template": "MERCHANT_RESTRICTION",
+      "name": "Merchant Block",
+      "description": "",
+      "status": "ACTIVE",
+      "segments": [],
+      "enrollment": "AUTO",
+      "params": {
+        "action": "BLOCK",
+        "period": "MONTH",
+        "points": 25,
+        "minActivity": 5
+      },
+      "customerParams": {
+        "merchants": {
+          "maxItems": 20
+        }
+      },
+      "settingsPolicy": {
+        "changeEffective": "IMMEDIATE",
+        "cooldownDays": 0
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": false,
+      "tags": []
+    },
+    {
+      "kind": "Rule",
+      "code": "MSL_ROLLING_AFFLUENT",
+      "version": 1,
+      "template": "MONTHLY_SPEND_LIMIT",
+      "name": "Rolling 30-day Spend Limit – Affluent",
+      "description": "",
+      "status": "ACTIVE",
+      "segments": [
+        "AFFLUENT"
+      ],
+      "enrollment": "AUTO",
+      "params": {
+        "windowType": "ROLLING_DAYS",
+        "points": 150,
+        "minActivity": 5,
+        "warnAtPct": 85
+      },
+      "customerParams": {
+        "limit": {
+          "min": 50000,
+          "max": 5000000,
+          "step": 5000,
+          "default": 500000
+        }
+      },
+      "settingsPolicy": {
+        "changeEffective": "IMMEDIATE",
+        "cooldownDays": 7
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": false,
+      "tags": []
+    },
+    {
+      "kind": "Rule",
+      "code": "MSL_STANDARD",
+      "version": 1,
+      "template": "MONTHLY_SPEND_LIMIT",
+      "name": "Monthly Spend Limit",
+      "description": "",
+      "status": "ACTIVE",
+      "segments": [],
+      "enrollment": "AUTO",
+      "params": {
+        "windowType": "MONTH",
+        "points": 100,
+        "minActivity": 5
+      },
+      "customerParams": {
+        "limit": {
+          "min": 5000,
+          "max": 2000000,
+          "step": 500,
+          "default": 50000
+        }
+      },
+      "settingsPolicy": {
+        "changeEffective": "NEXT_WINDOW",
+        "cooldownDays": 7
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": false,
+      "tags": []
+    },
+    {
+      "kind": "Rule",
+      "code": "RD_COMPLETE_STD",
+      "version": 1,
+      "template": "RD_COMPLETION",
+      "name": "Complete your RD",
+      "description": "",
+      "status": "ACTIVE",
+      "segments": [],
+      "enrollment": "AUTO",
+      "params": {
+        "points": 1000,
+        "maxMissed": 0,
+        "minTenure": 6
+      },
+      "customerParams": {},
+      "settingsPolicy": {
+        "changeEffective": "NEXT_WINDOW",
+        "cooldownDays": 0
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": false,
+      "tags": []
+    },
+    {
+      "kind": "Rule",
+      "code": "RD_STREAK_AFFLUENT",
+      "version": 1,
+      "template": "RD_PAYMENT_STREAK",
+      "name": "RD Streak – Affluent",
+      "description": "Featured mission for Affluent customers.",
+      "status": "ACTIVE",
+      "segments": [
+        "AFFLUENT"
+      ],
+      "enrollment": "AUTO",
+      "params": {
+        "m1": 3,
+        "p1": 150,
+        "m2": 6,
+        "p2": 400,
+        "m3": 12,
+        "p3": 1000
+      },
+      "customerParams": {},
+      "settingsPolicy": {
+        "changeEffective": "NEXT_WINDOW",
+        "cooldownDays": 0
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": true,
+      "tags": []
+    },
+    {
+      "kind": "Rule",
+      "code": "RD_STREAK_MASS",
+      "version": 1,
+      "template": "RD_PAYMENT_STREAK",
+      "name": "RD Streak – Mass",
+      "description": "",
+      "status": "ACTIVE",
+      "segments": [
+        "MASS",
+        "YOUTH"
+      ],
+      "enrollment": "AUTO",
+      "params": {
+        "m1": 3,
+        "p1": 100,
+        "m2": 6,
+        "p2": 250,
+        "m3": 12,
+        "p3": 600
+      },
+      "customerParams": {},
+      "settingsPolicy": {
+        "changeEffective": "NEXT_WINDOW",
+        "cooldownDays": 0
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": false,
+      "tags": []
+    },
+    {
+      "kind": "Rule",
+      "code": "REFERRAL_STD",
+      "version": 1,
+      "template": "REFER_A_CUSTOMER",
+      "name": "Refer a Friend",
+      "description": "",
+      "status": "ACTIVE",
+      "segments": [],
+      "enrollment": "AUTO",
+      "params": {
+        "points": 500,
+        "maxPerYear": 5
+      },
+      "customerParams": {},
+      "settingsPolicy": {
+        "changeEffective": "NEXT_WINDOW",
+        "cooldownDays": 0
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": false,
+      "tags": []
+    },
+    {
+      "kind": "Rule",
+      "code": "TIMING_STD",
+      "version": 1,
+      "template": "TIMING_RESTRICTION",
+      "name": "Night-time Spend Restriction",
+      "description": "",
+      "status": "ACTIVE",
+      "segments": [],
+      "enrollment": "AUTO",
+      "params": {
+        "channels": [
+          "CARD_POS",
+          "CARD_ONLINE",
+          "UPI"
+        ],
+        "action": "ALERT",
+        "period": "WEEK",
+        "points": 15,
+        "minActivity": 3
+      },
+      "customerParams": {},
+      "settingsPolicy": {
+        "changeEffective": "NEXT_WINDOW",
+        "cooldownDays": 0
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": false,
+      "tags": []
+    },
+    {
+      "kind": "Rule",
+      "code": "TXN_TYPE_BLOCK_STD",
+      "version": 1,
+      "template": "TXN_TYPE_RESTRICTION",
+      "name": "Transaction Type Block",
+      "description": "",
+      "status": "ACTIVE",
+      "segments": [],
+      "enrollment": "AUTO",
+      "params": {
+        "action": "BLOCK",
+        "period": "MONTH",
+        "points": 25,
+        "minActivity": 5
+      },
+      "customerParams": {
+        "blockedTypes": {
+          "options": [
+            "ATM_WITHDRAWAL",
+            "CASH_ADVANCE",
+            "INTERNATIONAL_POS"
+          ],
+          "default": [
+            "ATM_WITHDRAWAL"
+          ]
+        }
+      },
+      "settingsPolicy": {
+        "changeEffective": "IMMEDIATE",
+        "cooldownDays": 0
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": false,
+      "tags": []
+    },
+    {
+      "kind": "Rule",
+      "code": "UPI_STREAK_MASS",
+      "version": 1,
+      "template": "UPI_TXN_COUNT",
+      "name": "UPI Streak – 10 payments a month",
+      "description": "Featured mission for Mass customers.",
+      "status": "ACTIVE",
+      "segments": [
+        "MASS",
+        "YOUTH"
+      ],
+      "enrollment": "AUTO",
+      "params": {
+        "target": 10,
+        "points": 150,
+        "minAmount": 50,
+        "maxPerDay": 3
+      },
+      "customerParams": {},
+      "settingsPolicy": {
+        "changeEffective": "NEXT_WINDOW",
+        "cooldownDays": 0
+      },
+      "effective": {
+        "from": "2026-01-01",
+        "to": null
+      },
+      "priority": 100,
+      "featured": true,
+      "tags": []
+    }
+  ],
+  "generatedAt": "2026-10-14T18:11:15.719Z"
+}

@@ -23,7 +23,7 @@ flowchart LR
     mission_enrollment
   end
   subgraph RUN["5. Runtime"]
-    transaction
+    txn["transaction"]
     rule_state
     control_decision
     rule_evaluation
@@ -46,9 +46,9 @@ flowchart LR
   customer --> mission_enrollment
   rule --> customer_setting
   rule --> mission_enrollment
-  customer --> transaction
-  transaction --> rule_evaluation
-  transaction --> points_ledger
+  customer --> txn
+  txn --> rule_evaluation
+  txn --> points_ledger
   customer --> rule_state
   customer --> points_account
   app_user --> user_role
@@ -57,173 +57,175 @@ flowchart LR
 
 ## Full ERD (keys and relationships)
 
+> Note: the table is named `"transaction"` in SQL (reserved word). In this diagram it appears as `txn` so Mermaid/GitHub can render it.
+
 ```mermaid
 erDiagram
-  segment ||--o{ customer : "segment_code"
-  customer ||--o{ account : "customer_id"
-  customer ||--|| points_account : "customer_id"
+  segment ||--o{ customer : has
+  customer ||--o{ account : owns
+  customer ||--|| points_account : balance
 
-  customer ||--o{ customer_setting : "customer_id"
-  rule ||--o{ customer_setting : "rule_code"
-  customer ||--o{ mission_enrollment : "customer_id"
-  rule ||--o{ mission_enrollment : "rule_code"
+  customer ||--o{ customer_setting : sets
+  rule ||--o{ customer_setting : configures
+  customer ||--o{ mission_enrollment : joins
+  rule ||--o{ mission_enrollment : offers
 
-  customer ||--o{ transaction : "customer_id"
-  transaction ||--o{ rule_evaluation : "event_id"
-  transaction ||--o{ spend_control_breach : "event_id"
-  transaction ||--o{ points_ledger : "event_id"
-  rule_evaluation ||--o| spend_control_breach : "evaluation_id"
+  customer ||--o{ txn : posts
+  txn ||--o{ rule_evaluation : produces
+  txn ||--o{ spend_control_breach : may_breach
+  txn ||--o{ points_ledger : may_earn
+  rule_evaluation ||--o| spend_control_breach : details
 
-  customer ||--o{ rule_state : "customer_id"
-  customer ||--o{ control_decision : "customer_id"
-  customer ||--o{ points_ledger : "customer_id"
-  customer ||--o{ nudge : "customer_id"
-  customer ||--o{ rule_evaluation : "customer_id"
-  customer ||--o{ spend_control_breach : "customer_id"
+  customer ||--o{ rule_state : progress
+  customer ||--o{ control_decision : preauth
+  customer ||--o{ points_ledger : ledger
+  customer ||--o{ nudge : messages
+  customer ||--o{ rule_evaluation : evaluated
+  customer ||--o{ spend_control_breach : breaches
 
-  test_scenario ||--o{ test_run : "scenario_id"
-  app_user ||--o{ user_role : "user_id"
+  test_scenario ||--o{ test_run : runs
+  app_user ||--o{ user_role : has_role
 
   segment {
-    text segment_code PK
-    text name
+    string segment_code PK
+    string name
     int sort_order
   }
   customer {
-    text customer_id PK
-    text customer_ref UK
-    text segment_code FK
-    text timezone
-    text attributes_json
+    string customer_id PK
+    string customer_ref UK
+    string segment_code FK
+    string timezone
+    string attributes_json
   }
   account {
-    text account_id PK
-    text customer_id FK
-    text account_type
-    text product_family
+    string account_id PK
+    string customer_id FK
+    string account_type
+    string product_family
   }
   rule {
-    text rule_code PK
-    text family
-    text template_code
-    text status
-    text definition_json
+    string rule_code PK
+    string family
+    string template_code
+    string status
+    string definition_json
   }
   customer_setting {
-    text setting_id PK
-    text customer_id FK
-    text rule_code FK
-    text values_json
-    text effective_from
-    text pending_from
-    text status
+    string setting_id PK
+    string customer_id FK
+    string rule_code FK
+    string values_json
+    string effective_from
+    string pending_from
+    string status
   }
   mission_enrollment {
-    text customer_id PK_FK
-    text rule_code PK_FK
-    text status
-    text enrolled_at
+    string customer_id PK,FK
+    string rule_code PK,FK
+    string status
+    string enrolled_at
   }
-  transaction {
-    text event_id PK
-    text source_system
-    text source_event_id
-    text event_type
-    text customer_id FK
-    text occurred_at
-    text payload_json
-    text status
+  txn {
+    string event_id PK
+    string source_system
+    string source_event_id
+    string event_type
+    string customer_id FK
+    string occurred_at
+    string payload_json
+    string status
   }
   rule_state {
-    text state_key PK
-    text prefix
-    text rule_code
-    text customer_id
-    text window_key
-    text state_json
+    string state_key PK
+    string prefix
+    string rule_code
+    string customer_id
+    string window_key
+    string state_json
   }
   control_decision {
-    text decision_id PK
-    text customer_id
-    text decision
-    text reasons_json
+    string decision_id PK
+    string customer_id
+    string decision
+    string reasons_json
   }
   rule_evaluation {
-    text evaluation_id PK
-    text event_id
-    text rule_code
-    text customer_id
-    text outcome
+    string evaluation_id PK
+    string event_id
+    string rule_code
+    string customer_id
+    string outcome
     int points
   }
   spend_control_breach {
-    text breach_id PK
-    text evaluation_id
-    text customer_id
-    text rule_code
-    text event_id
-    real limit_value
-    real measured_value
+    string breach_id PK
+    string evaluation_id
+    string customer_id
+    string rule_code
+    string event_id
+    float limit_value
+    float measured_value
   }
   points_ledger {
     int ledger_id PK
-    text customer_id FK
-    text entry_type
+    string customer_id FK
+    string entry_type
     int points
-    text rule_code
-    text event_id
-    text idempotency_key UK
-    text earned_on
+    string rule_code
+    string event_id
+    string idempotency_key UK
+    string earned_on
   }
   points_account {
-    text customer_id PK_FK
+    string customer_id PK,FK
     int balance
     int lifetime_earned
   }
   nudge {
-    text nudge_id PK
-    text customer_id
-    text rule_code
-    text dedupe_key UK
+    string nudge_id PK
+    string customer_id
+    string rule_code
+    string dedupe_key UK
   }
   test_scenario {
-    text scenario_id PK
-    text name
-    text definition_json
+    string scenario_id PK
+    string name
+    string definition_json
   }
   test_run {
-    text run_id PK
-    text scenario_id FK
-    text run_kind
+    string run_id PK
+    string scenario_id FK
+    string run_kind
     int passed
     int failed
   }
   app_user {
-    text user_id PK
-    text username UK
-    text password_hash
+    string user_id PK
+    string username UK
+    string password_hash
   }
   user_role {
-    text user_id PK_FK
-    text role_code PK
+    string user_id PK,FK
+    string role_code PK
   }
   audit_log {
     int audit_id PK
-    text actor
-    text action
-    text entity_type
-    text entity_id
-    text hash
+    string actor
+    string action
+    string entity_type
+    string entity_id
+    string row_hash
   }
   reference_value {
-    text list_code PK
-    text value_code PK
-    text label
+    string list_code PK
+    string value_code PK
+    string label
   }
   merchant {
-    text merchant_id PK
-    text name
-    text category_code
+    string merchant_id PK
+    string name
+    string category_code
   }
 ```
 

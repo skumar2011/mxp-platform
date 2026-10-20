@@ -57,7 +57,7 @@ flowchart LR
 
 ## Full ERD (keys and relationships)
 
-> Note: the table is named `"transaction"` in SQL (reserved word). In this diagram it appears as `txn` so Mermaid/GitHub can render it.
+> Notes for GitHub Mermaid: the SQL table `"transaction"` is drawn as `txn` (reserved word). Composite keys use a single marker (`PK` only) — GitHub’s Mermaid build rejects `PK,FK`.
 
 ```mermaid
 erDiagram
@@ -121,8 +121,8 @@ erDiagram
     string status
   }
   mission_enrollment {
-    string customer_id PK,FK
-    string rule_code PK,FK
+    string customer_id PK
+    string rule_code PK
     string status
     string enrolled_at
   }
@@ -178,7 +178,7 @@ erDiagram
     string earned_on
   }
   points_account {
-    string customer_id PK,FK
+    string customer_id PK
     int balance
     int lifetime_earned
   }
@@ -206,7 +206,7 @@ erDiagram
     string password_hash
   }
   user_role {
-    string user_id PK,FK
+    string user_id PK
     string role_code PK
   }
   audit_log {

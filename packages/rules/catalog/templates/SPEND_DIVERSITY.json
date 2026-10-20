@@ -1,0 +1,30 @@
+{
+  "kind": "RuleTemplate",
+  "code": "SPEND_DIVERSITY",
+  "version": 1,
+  "family": "MISSION",
+  "name": "Cross-Product Spend Diversity",
+  "description": "Spend through several different products in the month (credit card, debit card, UPI from savings...).",
+  "icon": "🎯",
+  "category": "Extension",
+  "summary": "Spend at least {minAmount} on {distinct} different products this month. Earn {points} points.",
+  "params": [
+    { "name": "distinct", "label": "Different products required", "type": "integer", "setBy": "BANK", "min": 2, "default": 3 },
+    { "name": "minAmount", "label": "Minimum amount per spend", "type": "money", "setBy": "BANK", "min": 1, "default": 200 },
+    { "name": "points", "label": "Points", "type": "integer", "setBy": "BANK", "min": 0, "default": 250 }
+  ],
+  "logic": {
+    "events": ["TRANSACTION"],
+    "scope": { "field": "event.dr_cr", "op": "eq", "value": "D" },
+    "filter": {
+      "all": [
+        { "field": "event.amount", "op": "gte", "value": { "$param": "minAmount" } },
+        { "field": "event.product_family", "op": "exists" }
+      ]
+    },
+    "measure": { "type": "COUNT_DISTINCT", "field": "event.product_family" },
+    "window": { "type": "MONTH" },
+    "goal": { "op": "gte", "target": { "$param": "distinct" } },
+    "reward": { "mode": "ON_GOAL", "points": { "$param": "points" } }
+  }
+}

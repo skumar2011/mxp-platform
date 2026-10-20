@@ -1,0 +1,27 @@
+{
+  "kind": "RuleTemplate",
+  "code": "AVG_BALANCE_DAYS",
+  "version": 1,
+  "family": "MISSION",
+  "name": "Average Balance Maintenance",
+  "description": "Keep the end-of-day balance at or above a threshold on enough days in the calendar month. Corrected snapshots for the same date replace earlier ones.",
+  "icon": "💰",
+  "category": "Balances",
+  "summary": "Keep at least {threshold} on {days} or more days this month. Earn {points} points.",
+  "params": [
+    { "name": "threshold", "label": "Balance threshold", "type": "money", "setBy": "BANK", "min": 0 },
+    { "name": "days", "label": "Days required in the month", "type": "integer", "setBy": "BANK", "min": 1, "max": 31, "default": 20 },
+    { "name": "points", "label": "Points", "type": "integer", "setBy": "BANK", "min": 0 },
+    { "name": "accountTypes", "label": "Account types", "type": "enum[]", "setBy": "BANK", "optionsFrom": "account_types", "default": ["SAVINGS"] }
+  ],
+  "logic": {
+    "events": ["BALANCE_SNAPSHOT"],
+    "subject": "ACCOUNT",
+    "scope": { "field": "event.account_type", "op": "in", "value": { "$param": "accountTypes" } },
+    "filter": { "field": "event.balance", "op": "gte", "value": { "$param": "threshold" } },
+    "measure": { "type": "DISTINCT_DAYS", "dedupeBy": "event.as_of_date" },
+    "window": { "type": "MONTH", "graceDays": 1 },
+    "goal": { "op": "gte", "target": { "$param": "days" } },
+    "reward": { "mode": "ON_GOAL", "points": { "$param": "points" } }
+  }
+}

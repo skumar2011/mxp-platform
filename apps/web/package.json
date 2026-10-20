@@ -1,6 +1,6 @@
 {
   "name": "@mxp/web",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,12 +9,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@fastify/jwt": "10.2.4",
-    "@fastify/static": "10.1.6",
+    "@mxp/rules": "*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^7.18.4",
-    "vitest": "^2.1.9"
+    "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",

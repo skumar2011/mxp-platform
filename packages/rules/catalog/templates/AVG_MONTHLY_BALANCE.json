@@ -1,0 +1,33 @@
+{
+  "kind": "RuleTemplate",
+  "code": "AVG_MONTHLY_BALANCE",
+  "version": 1,
+  "family": "MISSION",
+  "name": "Average Monthly Balance",
+  "description": "Average of end-of-day balances over the month, with two tiers. Paid when the month closes, because an average is only final then.",
+  "icon": "🏦",
+  "category": "Balances",
+  "summary": "Hold an average monthly balance of {tier1} for {points1} points, or {tier2} for {points2} points in total.",
+  "params": [
+    { "name": "tier1", "label": "Tier 1 average balance", "type": "money", "setBy": "BANK", "min": 0 },
+    { "name": "points1", "label": "Tier 1 points", "type": "integer", "setBy": "BANK", "min": 0 },
+    { "name": "tier2", "label": "Tier 2 average balance", "type": "money", "setBy": "BANK", "min": 0 },
+    { "name": "points2", "label": "Tier 2 points (total)", "type": "integer", "setBy": "BANK", "min": 0 },
+    { "name": "accountTypes", "label": "Account types", "type": "enum[]", "setBy": "BANK", "optionsFrom": "account_types", "default": ["SAVINGS"] }
+  ],
+  "logic": {
+    "events": ["BALANCE_SNAPSHOT"],
+    "subject": "ACCOUNT",
+    "scope": { "field": "event.account_type", "op": "in", "value": { "$param": "accountTypes" } },
+    "measure": { "type": "AVG_DAILY", "field": "event.balance", "dedupeBy": "event.as_of_date", "denominator": "OBSERVED_DAYS" },
+    "window": { "type": "MONTH", "graceDays": 1 },
+    "goal": {
+      "op": "gte",
+      "tiers": [
+        { "label": "Tier 1", "target": { "$param": "tier1" }, "points": { "$param": "points1" } },
+        { "label": "Tier 2", "target": { "$param": "tier2" }, "points": { "$param": "points2" } }
+      ]
+    },
+    "reward": { "mode": "ON_GOAL", "awardAt": "WINDOW_CLOSE", "tierMode": "HIGHEST_ONLY" }
+  }
+}

@@ -1,7 +1,7 @@
 export const inr = (n: number | null | undefined, digits = 0) =>
   n === null || n === undefined ? '-' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: digits, minimumFractionDigits: digits }).format(n);
 
-export const num = (n: number | null | undefined) => (n === null || n === undefined ? '-' : new Intl.NumberFormat('en-IN').format(n));
+export const num = (n: number | null | undefined) => (n === null || n === undefined ? '-' : new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n));
 
 export const pts = (n: number | null | undefined) => (n === null || n === undefined ? '-' : `${n > 0 ? '+' : ''}${num(n)}`);
 
@@ -15,15 +15,19 @@ export const day = (iso?: string | null) => (iso ? iso.slice(0, 10) : '-');
 
 export const pretty = (s: string) => s.toLowerCase().replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
 
-/** Metric display: money metrics in rupees, counts as plain numbers. */
-export const metricText = (v: number | null | undefined, type?: string | null) => (v === null || v === undefined ? '-' : type === 'COUNT' || type === 'PER_EVENT' ? num(v) : inr(v));
+export const familyLabel = (f: string) => (f === 'SPEND_CONTROL' ? 'Spend control' : 'Mission');
 
 export const STATUS_TONE: Record<string, string> = {
-  ACTIVE: 'green', APPROVED: 'blue', PENDING_APPROVAL: 'amber', DRAFT: 'gray', PAUSED: 'amber', REJECTED: 'red', RETIRED: 'gray', SUPERSEDED: 'gray',
-  AWARDED: 'green', ACHIEVED: 'green', REVERSED: 'red', IN_PROGRESS: 'blue', NOT_QUALIFYING: 'gray', INELIGIBLE: 'gray', NO_CHANGE: 'gray', CAPPED: 'amber', SUPPRESSED: 'amber',
-  DATA_UNAVAILABLE: 'amber', PERIOD_CLOSED: 'gray', ERROR: 'red', PASSED: 'green', FAILED: 'red', NO_EXPECTATION: 'gray',
-  PROCESSED: 'green', RECEIVED: 'blue', NORMALIZED: 'blue', PROCESSING: 'blue', SUSPENDED: 'amber', DEAD_LETTER: 'red', REJECTED_EVENT: 'red',
-  SENT: 'green', ELIGIBLE: 'blue', CLOSED: 'gray', RECONCILED: 'green', MISMATCH: 'red', OPEN: 'blue', REQUESTED: 'amber',
-  CLOSED_ACHIEVED: 'green', CLOSED_NOT_ACHIEVED: 'gray', CLOSED_SUPERSEDED: 'gray',
-  AWARD: 'green', REVERSAL: 'red', ADJUSTMENT: 'amber',
+  // rule lifecycle
+  ACTIVE: 'green', APPROVED: 'blue', PENDING_APPROVAL: 'amber', DRAFT: 'gray', PAUSED: 'amber', REJECTED: 'red', RETIRED: 'gray', SUPERSEDED: 'gray', CANCELLED: 'gray',
+  // engine outcomes
+  AWARDED: 'green', GOAL_MET: 'green', COMPLIANT: 'green', WITHIN_LIMIT: 'green', PROGRESS: 'blue', IN_PROGRESS: 'blue', WARNING: 'amber', BREACH: 'red', BREACHED: 'red',
+  REVERSED: 'red', STREAK_BROKEN: 'red', CAPPED: 'amber', MISSED: 'gray', NO_ACTIVITY: 'gray', NOT_MATCHED: 'gray', NOT_ELIGIBLE: 'gray', NOT_ENROLLED: 'gray',
+  INVALID_SETTING: 'red', DUPLICATE: 'gray', WINDOW_CLOSED: 'gray', OUT_OF_SCOPE: 'gray', NOT_EFFECTIVE: 'gray', CLOSED: 'gray',
+  // decisions
+  ALLOW: 'green', WARN: 'amber', ALERT: 'red', BLOCK: 'red',
+  // misc
+  PASSED: 'green', FAILED: 'red', PROCESSED: 'green', RECEIVED: 'blue', OPEN: 'blue', PENDING: 'amber', SENT: 'green', SUPPRESSED: 'gray',
+  AWARD: 'green', CLAWBACK: 'red', ADJUSTMENT: 'amber', ENROLLED: 'green', OPTED_OUT: 'gray',
+  MISSION: 'violet', SPEND_CONTROL: 'blue', BANK: 'violet', CUSTOMER: 'blue',
 };

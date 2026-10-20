@@ -1,0 +1,33 @@
+{
+  "kind": "RuleTemplate",
+  "code": "UPI_TXN_COUNT",
+  "version": 1,
+  "family": "MISSION",
+  "name": "UPI Transaction Count",
+  "description": "Genuine UPI usage, not just registration: a minimum amount, no self-transfers, and a daily cap on how many payments count.",
+  "icon": "📱",
+  "category": "Usage",
+  "summary": "Make {target} UPI payments of at least {minAmount} this month (max {maxPerDay} a day count). Earn {points} points.",
+  "params": [
+    { "name": "target", "label": "Payments required", "type": "integer", "setBy": "BANK", "min": 1, "default": 10 },
+    { "name": "points", "label": "Points", "type": "integer", "setBy": "BANK", "min": 0, "default": 150 },
+    { "name": "minAmount", "label": "Minimum payment amount", "type": "money", "setBy": "BANK", "min": 1, "default": 50 },
+    { "name": "maxPerDay", "label": "Max payments counted per day", "type": "integer", "setBy": "BANK", "min": 1, "default": 3 }
+  ],
+  "logic": {
+    "events": ["TRANSACTION"],
+    "scope": {
+      "all": [
+        { "field": "event.channel", "op": "eq", "value": "UPI" },
+        { "field": "event.dr_cr", "op": "eq", "value": "D" },
+        { "field": "event.txn_type", "op": "not_in", "value": ["SELF_TRANSFER", "REFUND"] }
+      ]
+    },
+    "filter": { "field": "event.amount", "op": "gte", "value": { "$param": "minAmount" } },
+    "measure": { "type": "COUNT", "perDayCap": { "$param": "maxPerDay" } },
+    "window": { "type": "MONTH" },
+    "goal": { "op": "gte", "target": { "$param": "target" } },
+    "reward": { "mode": "ON_GOAL", "points": { "$param": "points" } },
+    "nudges": { "nearGoalPct": 70 }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "kind": "RuleTemplate",
+  "code": "CATEGORY_SPEND_LIMIT",
+  "version": 1,
+  "family": "SPEND_CONTROL",
+  "name": "Merchant Category Spend Limit",
+  "description": "Category-specific thresholds: the customer picks the categories and the limit.",
+  "icon": "🏷️",
+  "category": "Spend limits",
+  "summary": "Keep spend on {categories} within {limit} per {period}. Earn {points} points for each {period} within it.",
+  "params": [
+    { "name": "categories", "label": "Categories", "type": "enum[]", "setBy": "CUSTOMER", "optionsFrom": "categories" },
+    { "name": "limit", "label": "Category limit", "type": "money", "setBy": "CUSTOMER", "min": 100, "max": 5000000, "step": 100 },
+    { "name": "period", "label": "Period", "type": "enum", "setBy": "BANK", "options": ["DAY", "WEEK", "MONTH"], "default": "MONTH" },
+    { "name": "action", "label": "When the limit is exceeded", "type": "enum", "setBy": "BANK", "options": ["ALERT", "BLOCK"], "default": "ALERT" },
+    { "name": "warnAtPct", "label": "Warn at % of limit", "type": "percent", "setBy": "BANK", "default": 80 },
+    { "name": "points", "label": "Points per compliant period", "type": "integer", "setBy": "BANK", "min": 0, "default": 50 },
+    { "name": "minActivity", "label": "Minimum spends in the period to earn", "type": "integer", "setBy": "BANK", "min": 1, "default": 3 }
+  ],
+  "logic": {
+    "events": ["TRANSACTION"],
+    "scope": {
+      "all": [
+        { "field": "event.dr_cr", "op": "eq", "value": "D" },
+        { "field": "event.txn_type", "op": "in", "value": ["PURCHASE", "INTERNATIONAL_POS", "BILL_PAYMENT"] }
+      ]
+    },
+    "filter": { "field": "event.category", "op": "in", "value": { "$param": "categories" } },
+    "measure": { "type": "SUM", "field": "event.amount" },
+    "window": { "type": { "$param": "period" } },
+    "goal": { "op": "lte", "target": { "$param": "limit" } },
+    "control": { "action": { "$param": "action" }, "warnAtPct": { "$param": "warnAtPct" } },
+    "reward": { "mode": "WINDOW_COMPLIANCE", "points": { "$param": "points" }, "minActivity": { "$param": "minActivity" } }
+  }
+}

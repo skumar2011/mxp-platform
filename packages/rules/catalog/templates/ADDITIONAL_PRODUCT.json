@@ -1,0 +1,24 @@
+{
+  "kind": "RuleTemplate",
+  "code": "ADDITIONAL_PRODUCT",
+  "version": 1,
+  "family": "MISSION",
+  "name": "Avail an Additional Product",
+  "description": "Rewarded on approval only, once per product family.",
+  "icon": "➕",
+  "category": "Growth",
+  "summary": "Earn {points} points when a new {families} is approved (once per product, up to {maxProducts}).",
+  "params": [
+    { "name": "families", "label": "Products that qualify", "type": "enum[]", "setBy": "BANK", "optionsFrom": "product_families", "default": ["CREDIT_CARD", "RECURRING_DEPOSIT", "FIXED_DEPOSIT", "INSURANCE", "MUTUAL_FUND"] },
+    { "name": "points", "label": "Points per product", "type": "integer", "setBy": "BANK", "min": 0, "default": 300 },
+    { "name": "maxProducts", "label": "Max products rewarded (lifetime)", "type": "integer", "setBy": "BANK", "min": 1, "default": 3 }
+  ],
+  "logic": {
+    "events": ["PRODUCT_APPLICATION"],
+    "scope": { "field": "event.product_family", "op": "in", "value": { "$param": "families" } },
+    "filter": { "field": "event.status", "op": "eq", "value": "APPROVED" },
+    "measure": { "type": "COUNT", "dedupeBy": "event.product_family" },
+    "window": { "type": "LIFETIME" },
+    "reward": { "mode": "PER_EVENT", "points": { "$param": "points" }, "maxAwards": { "$param": "maxProducts" } }
+  }
+}

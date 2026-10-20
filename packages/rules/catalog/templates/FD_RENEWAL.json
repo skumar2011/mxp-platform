@@ -1,0 +1,30 @@
+{
+  "kind": "RuleTemplate",
+  "code": "FD_RENEWAL",
+  "version": 1,
+  "family": "MISSION",
+  "name": "FD Renewal / Rollover",
+  "description": "Reward keeping money with the bank at maturity, in proportion to the amount renewed.",
+  "icon": "🔄",
+  "category": "Extension",
+  "summary": "Renew or roll over a fixed deposit of at least {minAmount}: {pointsPer} points per {perAmount}, up to {capPerYear} points a year.",
+  "params": [
+    { "name": "actions", "label": "Qualifying actions", "type": "enum[]", "setBy": "BANK", "optionsFrom": "fd_actions", "default": ["RENEW", "ROLLOVER"] },
+    { "name": "minAmount", "label": "Minimum amount", "type": "money", "setBy": "BANK", "min": 0, "default": 50000 },
+    { "name": "pointsPer", "label": "Points per unit", "type": "integer", "setBy": "BANK", "min": 0, "default": 10 },
+    { "name": "perAmount", "label": "Unit amount", "type": "money", "setBy": "BANK", "min": 1, "default": 10000 },
+    { "name": "capPerYear", "label": "Cap per year (points)", "type": "integer", "setBy": "BANK", "min": 0, "default": 2000 }
+  ],
+  "logic": {
+    "events": ["FD_MATURITY"],
+    "filter": {
+      "all": [
+        { "field": "event.action", "op": "in", "value": { "$param": "actions" } },
+        { "field": "event.amount", "op": "gte", "value": { "$param": "minAmount" } }
+      ]
+    },
+    "measure": { "type": "SUM", "field": "event.amount", "dedupeBy": "event.maturity_id" },
+    "window": { "type": "YEAR" },
+    "reward": { "mode": "PER_EVENT", "points": { "$param": "pointsPer" }, "perAmount": { "$param": "perAmount" }, "capPointsPerWindow": { "$param": "capPerYear" } }
+  }
+}

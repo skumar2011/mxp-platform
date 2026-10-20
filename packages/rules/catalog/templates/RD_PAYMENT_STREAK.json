@@ -1,0 +1,36 @@
+{
+  "kind": "RuleTemplate",
+  "code": "RD_PAYMENT_STREAK",
+  "version": 1,
+  "family": "MISSION",
+  "name": "RD Payment Streak",
+  "description": "Consecutive on-time recurring deposit installments. A late installment or a missed month resets the streak; milestones can be earned again on a new streak.",
+  "icon": "📈",
+  "category": "Savings habits",
+  "summary": "Pay your RD on time every month: {m1} in a row earns {p1} points, {m2} earns {p2}, {m3} earns {p3}.",
+  "params": [
+    { "name": "m1", "label": "Milestone 1 (months)", "type": "integer", "setBy": "BANK", "min": 1, "default": 3 },
+    { "name": "p1", "label": "Milestone 1 points", "type": "integer", "setBy": "BANK", "min": 0, "default": 100 },
+    { "name": "m2", "label": "Milestone 2 (months)", "type": "integer", "setBy": "BANK", "min": 1, "default": 6 },
+    { "name": "p2", "label": "Milestone 2 points", "type": "integer", "setBy": "BANK", "min": 0, "default": 250 },
+    { "name": "m3", "label": "Milestone 3 (months)", "type": "integer", "setBy": "BANK", "min": 1, "default": 12 },
+    { "name": "p3", "label": "Milestone 3 points", "type": "integer", "setBy": "BANK", "min": 0, "default": 600 }
+  ],
+  "logic": {
+    "events": ["RD_INSTALLMENT"],
+    "subject": "ACCOUNT",
+    "filter": { "field": "event.on_time", "op": "eq", "value": true },
+    "measure": { "type": "STREAK", "streakPeriod": "MONTH", "breakWhen": { "field": "event.on_time", "op": "eq", "value": false } },
+    "window": { "type": "LIFETIME" },
+    "goal": {
+      "op": "gte",
+      "tiers": [
+        { "label": "Milestone 1", "target": { "$param": "m1" }, "points": { "$param": "p1" } },
+        { "label": "Milestone 2", "target": { "$param": "m2" }, "points": { "$param": "p2" } },
+        { "label": "Milestone 3", "target": { "$param": "m3" }, "points": { "$param": "p3" } }
+      ]
+    },
+    "reward": { "mode": "ON_GOAL" },
+    "nudges": { "nearGoalPct": 60 }
+  }
+}

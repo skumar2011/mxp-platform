@@ -1,18 +1,18 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { MxpError, can, type Actor } from '@mxp/engine';
+import { MxpError, can, type Actor } from '@mxp/platform';
 import { z, type ZodTypeAny } from 'zod';
-
-export interface AuthUser {
-  username: string;
-  name: string;
-  roles: string[];
-}
 
 declare module '@fastify/jwt' {
   interface FastifyJWT {
     payload: { sub: string; name: string; roles: string[] };
     user: { sub: string; name: string; roles: string[] };
   }
+}
+
+export interface AuthUser {
+  username: string;
+  name: string;
+  roles: string[];
 }
 
 export const userOf = (req: FastifyRequest): AuthUser => {
@@ -51,23 +51,6 @@ export const page = (q: any, max = 500) => ({
   offset: Math.max(parseInt(q?.offset ?? '0', 10) || 0, 0),
 });
 
-export interface Where {
-  sql: string;
-  params: (string | number)[];
-}
-
-/** Small helper to assemble optional filters safely (values are always bound, never concatenated). */
-export function where(parts: [string | undefined | null | false, string, ...(string | number)[]][]): Where {
-  const conds: string[] = [];
-  const params: (string | number)[] = [];
-  for (const [val, sql, ...ps] of parts) {
-    if (val === undefined || val === null || val === '' || val === false) continue;
-    conds.push(sql);
-    params.push(...(ps.length ? ps : [val as string]));
-  }
-  return { sql: conds.length ? `WHERE ${conds.join(' AND ')}` : '', params };
-}
-
 /** CSV with protection against spreadsheet formula injection. */
 export function toCsv(columns: string[], rows: Record<string, unknown>[]): string {
   const cell = (v: unknown) => {
@@ -80,17 +63,11 @@ export function toCsv(columns: string[], rows: Record<string, unknown>[]): strin
 }
 
 export function sendCsv(reply: FastifyReply, name: string, csv: string) {
-  return reply
-    .header('content-type', 'text/csv; charset=utf-8')
-    .header('content-disposition', `attachment; filename="${name.replace(/[^\w.-]/g, '_')}"`)
-    .send(csv);
+  return reply.header('content-type', 'text/csv; charset=utf-8').header('content-disposition', `attachment; filename="${name.replace(/[^\w.-]/g, '_')}"`).send(csv);
 }
 
 export function sendJsonDownload(reply: FastifyReply, name: string, body: unknown) {
-  return reply
-    .header('content-type', 'application/json; charset=utf-8')
-    .header('content-disposition', `attachment; filename="${name.replace(/[^\w.-]/g, '_')}"`)
-    .send(JSON.stringify(body, null, 2));
+  return reply.header('content-type', 'application/json; charset=utf-8').header('content-disposition', `attachment; filename="${name.replace(/[^\w.-]/g, '_')}"`).send(JSON.stringify(body, null, 2));
 }
 
-export const major = (minor: number | null | undefined) => (minor === null || minor === undefined ? null : minor / 100);
+export const str = (v: unknown) => (typeof v === 'string' && v.length ? v : undefined);

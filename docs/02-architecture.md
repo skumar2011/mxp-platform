@@ -10,10 +10,10 @@ flowchart LR
     C[catalog: 16 template files<br/>+ sample bank rules]
   end
   subgraph platform["@mxp/platform (system of record)"]
-    DB[(SQLite schema v2)]
-    CAT[Catalog: templates, rules,<br/>maker-checker, releases]
-    PAR[Participation: customers,<br/>settings, enrolments]
-    RT[Runtime: ingest, check,<br/>close windows, ledger]
+    DB[(SQLite schema v4)]
+    CAT[Catalog: templates, rules,<br/>packs on the fly]
+    PAR[Participation: customers,<br/>accounts, settings, enrolments]
+    RT[Runtime: DWH sync, ingest,<br/>check, close windows, ledger]
     SS[SqliteStateStore]
     Q[Queries + TestStore]
   end
@@ -81,7 +81,7 @@ sequenceDiagram
     RT->>ENG: process(event, context, SqliteStateStore)
     ENG->>DB: read/write window, rolling, lifetime and index state
     ENG-->>RT: decision, evaluations, effects
-    RT->>DB: rule_evaluation, points_ledger (idempotency key), points_account,<br/>spend_control_breach, nudge; event PROCESSED; COMMIT
+    RT->>DB: rule_evaluation, points_ledger (idempotency key), points_account,<br/>nudge; event PROCESSED; COMMIT
   end
 ```
 

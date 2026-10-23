@@ -5,6 +5,7 @@
  *   generateBoundaryCases(engine, code)    derives below / at / above-target cases from a rule's own definition
  */
 import type { Decision, Effect, Evaluation, Outcome, ProcessResult, RulesEngine } from './engine';
+import { familiesForProductScope } from './facts';
 import { resolveValues, substitute } from './params';
 import type { Condition, CustomerSettingInput, EvalContext, Logic, MxpEvent } from './schema';
 import { MemoryStateStore } from './store';
@@ -64,7 +65,15 @@ export function runScenario(engine: RulesEngine, sc: Scenario, store = new Memor
   const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
   const settings = [...(sc.settings ?? [])].map((s) => ({ ...s, customerId: s.customerId ?? sc.customer.id }));
   const enrollments = [...(sc.enrollments ?? [])];
-  const ctx = (): EvalContext => ({ customer: sc.customer, account: sc.account ?? null, settings, enrollments });
+  const ctx = (ev?: MxpEvent): EvalContext => {
+    const family = (ev?.product_family as string | undefined) ?? (sc.account?.product_family as string | undefined) ?? (Array.isArray(sc.customer.products) ? (sc.customer.products as string[])[0] : undefined);
+    const account =
+      sc.account ??
+      (ev?.accountId || family
+        ? { id: String(ev?.accountId ?? 'A_TEST'), product_family: family, type: family, status: 'ACTIVE' }
+        : null);
+    return { customer: sc.customer, account, settings, enrollments };
+  };
   const steps: StepResult[] = [];
   const ledger: ScenarioResult['ledger'] = [];
   const failures: string[] = [];
@@ -81,8 +90,8 @@ export function runScenario(engine: RulesEngine, sc: Scenario, store = new Memor
         let res: ProcessResult;
         if (step.kind === 'close') res = engine.close(step.asOf, store, () => ctx());
         else {
-          const ev = { customerId: sc.customer.id, ...step.event, id: step.event.id ?? `${sc.id ?? 'sc'}-e${++n}` } as MxpEvent;
-          res = step.kind === 'check' ? engine.check(ev, ctx(), store) : engine.process(ev, ctx(), store);
+          const ev = { customerId: sc.customer.id, accountId: sc.account?.id ?? 'A_TEST', ...step.event, id: step.event.id ?? `${sc.id ?? 'sc'}-e${++n}` } as MxpEvent;
+          res = step.kind === 'check' ? engine.check(ev, ctx(ev), store) : engine.process(ev, ctx(ev), store);
         }
         sr.result = res;
         const pts = res.effects.filter((e): e is ScenarioResult['ledger'][number] => (e.type === 'AWARD' || e.type === 'CLAWBACK') && focus(e));
@@ -189,6 +198,7 @@ export interface CaseBuilder {
   /** An event outside the rule scope (or null when the rule has no scope). */
   outOfScope(date: string): (Partial<MxpEvent> & { type: string; timestamp: string }) | null;
   customer: EvalContext['customer'];
+  account: NonNullable<EvalContext['account']>;
   values: Record<string, unknown>;
   logic: Logic;
   tz: string;
@@ -202,17 +212,31 @@ export function caseBuilder(engine: RulesEngine, code: string, customerValues: R
   const logic = substitute(r.template.logic, values) as Logic;
   const tz = r.template.logic.window.timezone && r.template.logic.window.timezone !== 'CUSTOMER' ? r.template.logic.window.timezone : engine.pack.timezone;
   const type = logic.events[0];
-  const cust: Draft = { event: {}, customer: { id: customerId, segment: r.rule.segments[0] ?? 'MASS', status: 'ACTIVE', timezone: tz }, account: {} };
+  const scopeFamilies = familiesForProductScope(r.rule.productScope) ?? ['SAVINGS', 'CURRENT', 'DEBIT_CARD', 'CREDIT_CARD'];
+  const cust: Draft = {
+    event: {},
+    customer: {
+      id: customerId,
+      segment: r.rule.segments[0] ?? 'MASS',
+      state: r.rule.states[0] ?? 'MH',
+      status: 'ACTIVE',
+      timezone: tz,
+      products: scopeFamilies,
+    },
+    account: { id: 'A_TEST', product_family: scopeFamilies[0], type: scopeFamilies[0], status: 'ACTIVE' },
+  };
   satisfy(r.rule.eligibility, cust, engine);
   let seq = 0;
   const mk = (date: string, d: Draft, over: Record<string, unknown> = {}) => {
     seq++;
     const time = d.time ?? '12:00';
-    return { type, accountId: 'A_TEST', ...d.event, ...over, timestamp: zonedToIso(date, time, tz) } as Partial<MxpEvent> & { type: string; timestamp: string };
+    const pf = (d.event.product_family as string | undefined) ?? (cust.account.product_family as string | undefined) ?? scopeFamilies[0];
+    return { type, accountId: 'A_TEST', product_family: pf, ...d.event, ...over, timestamp: zonedToIso(date, time, tz) } as Partial<MxpEvent> & { type: string; timestamp: string };
   };
-  const base = (): Draft => ({ event: { ...(BASE_EVENTS[type] ?? {}) }, customer: cust.customer, account: {} });
+  const base = (): Draft => ({ event: { ...(BASE_EVENTS[type] ?? {}), product_family: scopeFamilies[0] }, customer: cust.customer, account: { ...cust.account } });
   return {
     customer: cust.customer as EvalContext['customer'],
+    account: cust.account as NonNullable<EvalContext['account']>,
     values,
     logic,
     tz,
@@ -275,7 +299,7 @@ export function generateBoundaryCases(engine: RulesEngine, code: string, anchor 
   const setting: CustomerSettingInput[] = r.family === 'SPEND_CONTROL' ? [{ settingId: 'S1', customerId: b.customer.id, ruleCode: code, values }] : [];
   const enroll = r.family === 'MISSION' && r.rule.enrollment === 'OPT_IN' ? [code] : [];
   const sc = (name: string, steps: ScenarioStep[], total?: number, tags: string[] = []): Scenario => ({
-    id: `${code}:${name}`.replace(/\W+/g, '_'), name, focusRule: code, customer: b.customer, settings: setting, enrollments: enroll, steps, expect: total === undefined ? undefined : { totalPoints: total }, tags: ['generated', ...tags],
+    id: `${code}:${name}`.replace(/\W+/g, '_'), name, focusRule: code, customer: b.customer, account: b.account, settings: setting, enrollments: enroll, steps, expect: total === undefined ? undefined : { totalPoints: total }, tags: ['generated', ...tags],
   });
   const out: Scenario[] = [];
   const ev = (e: ScenarioStep & { kind: 'event' | 'check' }) => e;

@@ -23,21 +23,37 @@ export class Journey {
   points = 0;
   settings: CustomerSettingInput[] = [];
   enrollments: string[] = [];
-  constructor(readonly eng: RulesEngine, public customer: EvalContext['customer'] = { id: 'C1', segment: 'MASS', timezone: 'Asia/Kolkata' }) {}
-  ctx(): EvalContext {
-    return { customer: this.customer, settings: this.settings, enrollments: this.enrollments };
+  account: NonNullable<EvalContext['account']> = { id: 'A1', product_family: 'SAVINGS', type: 'SAVINGS', status: 'ACTIVE' };
+  constructor(
+    readonly eng: RulesEngine,
+    public customer: EvalContext['customer'] = {
+      id: 'C1',
+      segment: 'MASS',
+      state: 'MH',
+      timezone: 'Asia/Kolkata',
+      products: ['SAVINGS', 'CURRENT', 'DEBIT_CARD', 'CREDIT_CARD'],
+    },
+  ) {}
+  ctx(event?: MxpEvent): EvalContext {
+    const family = event?.product_family ?? this.account?.product_family ?? 'SAVINGS';
+    return {
+      customer: this.customer,
+      account: { ...this.account, id: event?.accountId ?? this.account.id, product_family: family },
+      settings: this.settings,
+      enrollments: this.enrollments,
+    };
   }
   set(ruleCode: string, values: Record<string, unknown>, over: Partial<CustomerSettingInput> = {}) {
     this.settings.push({ settingId: over.settingId ?? `S_${ruleCode}`, customerId: this.customer.id, ruleCode, values, ...over });
     return this;
   }
   send(e: MxpEvent): ProcessResult {
-    const r = this.eng.process(e, this.ctx(), this.store);
+    const r = this.eng.process(e, this.ctx(e), this.store);
     this.points += r.points;
     return r;
   }
   check(e: MxpEvent): ProcessResult {
-    return this.eng.check(e, this.ctx(), this.store);
+    return this.eng.check(e, this.ctx(e), this.store);
   }
   close(asOf: string): ProcessResult {
     const r = this.eng.close(asOf, this.store, () => this.ctx());

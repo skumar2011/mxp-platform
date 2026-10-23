@@ -20,6 +20,12 @@ describe('seed', () => {
     expect(d.pendingApprovals).toBe(1); // UPI_STREAK_SENIOR draft
     expect(mx.runtime.reconcile()).toEqual([]);
     expect(mx.verifyAudit().ok).toBe(true);
+    // v4: points are account-scoped; customer rollup still works
+    const c = mx.queries.customer360('C1001');
+    expect(c.points.byAccount.length).toBeGreaterThan(0);
+    expect(c.customer.state_code).toBe('MH');
+    expect(mx.catalog.listRules().find((r) => r.code === 'UPI_STREAK_MASS')?.states).toContain('MH');
+    expect(mx.catalog.listRules().find((r) => r.code === 'AMB_DAYS_MASS')?.productScope).toBe('CASA');
   });
 
   it('records the expected persona outcomes', () => {
@@ -123,7 +129,7 @@ describe('settings and runtime', () => {
   });
 
   it('is idempotent per source event id and detects conflicts', () => {
-    const e = { sourceSystem: 'CORE', sourceEventId: 'T-1', customerId: 'C1003', type: 'TRANSACTION', timestamp: '2026-10-14T05:00:00.000Z', amount: 100, dr_cr: 'D', channel: 'UPI', txn_type: 'PURCHASE', category: 'DINING', product_family: 'SAVINGS' };
+    const e = { sourceSystem: 'CORE', sourceEventId: 'T-1', customerId: 'C1003', accountId: 'C1003-SA', type: 'TRANSACTION', timestamp: '2026-10-14T05:00:00.000Z', amount: 100, dr_cr: 'D', channel: 'UPI', txn_type: 'PURCHASE', category: 'DINING', product_family: 'SAVINGS' };
     const a = mx.runtime.ingest(e, mx.user('ops'));
     const b = mx.runtime.ingest(e, mx.user('ops'));
     expect(a.duplicate).toBe(false);
@@ -145,7 +151,11 @@ describe('settings and runtime', () => {
        WHERE l.slot = 'compliance' LIMIT 1`,
     );
     expect(close.earned_on).toBe(close.window_end);
-    const breach = mx.db.get<any>('SELECT b.occurred_at, e.occurred_at AS event_at FROM spend_control_breach b JOIN "transaction" e ON e.event_id = b.event_id LIMIT 1');
+    const breach = mx.db.get<any>(
+      `SELECT COALESCE(t.occurred_at, e.evaluated_at) AS occurred_at, t.occurred_at AS event_at
+       FROM rule_evaluation e JOIN "transaction" t ON t.event_id = e.event_id
+       WHERE e.outcome = 'BREACH' LIMIT 1`,
+    );
     expect(breach.occurred_at).toBe(breach.event_at);
   });
 

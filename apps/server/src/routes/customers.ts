@@ -8,10 +8,23 @@ const eventSchema = z
     sourceSystem: z.string().max(40).optional(),
     sourceEventId: z.string().max(120).optional(),
     type: z.string().min(1).max(40),
-    customerId: z.string().min(1).max(64),
-    accountId: z.string().max(64).nullable().optional(),
+    customerId: z.string().min(1).max(64).optional(),
+    accountId: z.string().min(1).max(64),
     timestamp: z.string().min(10).max(40),
     reversalOf: z.string().max(120).nullable().optional(),
+    sourceChannel: z.string().max(40).nullable().optional(),
+  })
+  .passthrough();
+
+const dwhRowSchema = z
+  .object({
+    sourceEventId: z.string().min(1).max(120),
+    type: z.string().min(1).max(40),
+    accountId: z.string().min(1).max(64),
+    customerId: z.string().min(1).max(64).optional(),
+    timestamp: z.string().min(10).max(40),
+    reversalOf: z.string().max(120).nullable().optional(),
+    sourceChannel: z.string().max(40).nullable().optional(),
   })
   .passthrough();
 
@@ -30,13 +43,25 @@ export function customerRoutes(app: FastifyInstance, { mx }: AppCtx) {
         customerRef: z.string().min(3).max(40),
         displayName: z.string().min(1).max(80),
         segment: z.string().min(1),
+        stateCode: z.string().max(8).optional(),
         timezone: z.string().max(60).optional(),
         dormancyRisk: z.boolean().optional(),
-        accounts: z.array(z.object({ accountRef: z.string().min(3).max(40), accountType: z.string(), productFamily: z.string(), openedOn: z.string() })).max(20).optional(),
+        accounts: z
+          .array(
+            z.object({
+              accountRef: z.string().min(3).max(40),
+              accountType: z.string(),
+              productFamily: z.string(),
+              stateCode: z.string().max(8).optional(),
+              openedOn: z.string(),
+            }),
+          )
+          .max(20)
+          .optional(),
       }),
       req.body,
     );
-    if (body.timezone) new Intl.DateTimeFormat('en', { timeZone: body.timezone }); // throws on an invalid zone
+    if (body.timezone) new Intl.DateTimeFormat('en', { timeZone: body.timezone });
     return { customerId: P.createCustomer(body, actor) };
   });
   app.get('/customers/:id', async (req) => {
@@ -45,12 +70,19 @@ export function customerRoutes(app: FastifyInstance, { mx }: AppCtx) {
   });
   app.patch('/customers/:id', async (req) => {
     const actor = need(req, 'customers:write');
-    const body = parse(z.object({ segment: z.string().optional(), timezone: z.string().optional(), dormancyRisk: z.boolean().optional() }), req.body);
+    const body = parse(
+      z.object({
+        segment: z.string().optional(),
+        stateCode: z.string().max(8).nullable().optional(),
+        timezone: z.string().optional(),
+        dormancyRisk: z.boolean().optional(),
+      }),
+      req.body,
+    );
     P.updateCustomer((req.params as any).id, body, actor);
     return { ok: true };
   });
 
-  // ---------- spend controls: customer-set values ----------
   app.get('/customers/:id/offers', async (req) => {
     need(req, 'customers:read');
     return P.offers((req.params as any).id);
@@ -79,14 +111,23 @@ export function customerRoutes(app: FastifyInstance, { mx }: AppCtx) {
     P.optOut(id, rule, actor);
     return { ok: true };
   });
-  app.post('/customers/:id/points/adjust', async (req) => {
+  app.post('/accounts/:accountId/points/adjust', async (req) => {
     const actor = need(req, 'ops:run');
     const body = parse(z.object({ points: z.number().int(), reason: z.string().min(5).max(200) }), req.body);
-    mx.runtime.adjust((req.params as any).id, body.points, body.reason, actor);
+    mx.runtime.adjust((req.params as any).accountId, body.points, body.reason, actor);
     return { ok: true };
   });
+  /** @deprecated prefer /accounts/:accountId/points/adjust — still accepts primary CASA account */
+  app.post('/customers/:id/points/adjust', async (req) => {
+    const actor = need(req, 'ops:run');
+    const body = parse(z.object({ points: z.number().int(), reason: z.string().min(5).max(200), accountId: z.string().optional() }), req.body);
+    const cid = (req.params as any).id;
+    const accountId = body.accountId ?? P.accountsOf(P.customerRow(cid).customer_id).find((a: any) => a.product_family === 'SAVINGS')?.account_id;
+    if (!accountId) throw Object.assign(new Error('No account to adjust'), { statusCode: 422 });
+    mx.runtime.adjust(accountId, body.points, body.reason, actor);
+    return { ok: true, accountId };
+  });
 
-  // ---------- runtime ----------
   app.post('/events', async (req) => {
     const actor = need(req, 'events:write');
     return mx.runtime.ingest(parse(eventSchema, req.body), actor);
@@ -104,7 +145,36 @@ export function customerRoutes(app: FastifyInstance, { mx }: AppCtx) {
     });
     return { results, processed: results.filter((r) => r.status === 'PROCESSED').length };
   });
-  /** Real-time pre-authorisation decision (spend controls). Nothing is posted. */
+
+  /** Daily DWH load: warehouse rows for a business date → transaction + evaluate + performance nudges. */
+  app.post('/ops/dwh/sync', async (req) => {
+    const actor = need(req, 'ops:run');
+    const body = parse(
+      z.object({
+        businessDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        sourceSystem: z.string().max(40).optional(),
+        evaluate: z.boolean().optional(),
+        performanceNudges: z.boolean().optional(),
+        rows: z.array(dwhRowSchema).max(5000),
+      }),
+      req.body,
+    );
+    return mx.runtime.syncFromDwh(body.businessDate, body.rows, actor, {
+      sourceSystem: body.sourceSystem,
+      evaluate: body.evaluate,
+      performanceNudges: body.performanceNudges,
+    });
+  });
+  app.get('/ops/dwh/batches', async (req) => {
+    need(req, 'ops:run');
+    return mx.queries.dwhBatches(Number((req.query as any).limit) || 50);
+  });
+  app.post('/ops/performance-nudges', async (req) => {
+    const actor = need(req, 'ops:run');
+    const body = parse(z.object({ asOf: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }), req.body ?? {});
+    return { nudges: mx.runtime.generatePerformanceNudges(actor, body.asOf) };
+  });
+
   app.post('/controls/check', async (req) => {
     need(req, 'events:write');
     return mx.runtime.check(parse(eventSchema.extend({ requestId: z.string().max(80).optional() }), req.body));

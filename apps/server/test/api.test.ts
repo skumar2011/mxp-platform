@@ -65,7 +65,7 @@ describe('API', () => {
     const s = await call('ops', 'PUT', '/customers/C1006/controls/DSL_SENIOR', { values: { limit: 2000 } });
     expect(s.status).toBe(200);
     expect((await call('ops', 'PUT', '/customers/C1006/controls/DSL_SENIOR', { values: { limit: 100000 } })).status).toBe(422);
-    const ev = { customerId: 'C1006', type: 'TRANSACTION', timestamp: '2026-10-14T05:00:00.000Z', amount: 2500, dr_cr: 'D', channel: 'UPI', txn_type: 'PURCHASE', category: 'HEALTH', product_family: 'SAVINGS' };
+    const ev = { customerId: 'C1006', accountId: 'C1006-SA', type: 'TRANSACTION', timestamp: '2026-10-14T05:00:00.000Z', amount: 2500, dr_cr: 'D', channel: 'UPI', txn_type: 'PURCHASE', category: 'HEALTH', product_family: 'SAVINGS' };
     const chk = await call('ops', 'POST', '/controls/check', ev);
     expect(chk.body.decision).toBe('ALERT');
     const r = await call('ops', 'POST', '/events', { ...ev, sourceSystem: 'TEST', sourceEventId: 'api-1' });

@@ -225,6 +225,13 @@ export const ruleSchema = z
     status: z.enum(['ACTIVE', 'PAUSED', 'DRAFT']).default('ACTIVE'),
     /** Shortcut targeting: customer.segment must be one of these. Empty = all. */
     segments: z.array(z.string()).default([]),
+    /** Geographic targeting: customer.state must be one of these. Empty = all states. */
+    states: z.array(z.string()).default([]),
+    /**
+     * Product scope for the rule.
+     * ANY = all accounts; CASA = savings/current/debit; CREDIT_CARD = credit cards.
+     */
+    productScope: z.enum(['ANY', 'CASA', 'CREDIT_CARD']).default('ANY'),
     /** Extra eligibility on the customer / account context. */
     eligibility: conditionSchema.optional(),
     /** Missions: AUTO enrols every eligible customer; OPT_IN needs an enrolment. Spend controls are always opt-in through a setting. */
@@ -241,6 +248,7 @@ export const ruleSchema = z
       })
       .strict()
       .default({}),
+    /** Inclusive calendar dates: transactions outside this range are not evaluated. */
     effective: z.object({ from: isoDate.nullable().default(null), to: isoDate.nullable().default(null) }).strict().default({}),
     priority: z.number().int().min(0).max(1000).default(100),
     featured: z.boolean().default(false),

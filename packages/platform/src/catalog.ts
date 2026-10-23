@@ -28,6 +28,9 @@ export interface RuleRow {
   name: string;
   description: string | null;
   enrollment_mode: string;
+  product_scope: string;
+  effective_from: string | null;
+  effective_to: string | null;
   priority: number;
   featured: number;
   definition_json: string;
@@ -175,15 +178,15 @@ export class Catalog {
         // Editing a live rule returns it to DRAFT so activate is explicit.
         const status = existing.status === 'DRAFT' ? 'DRAFT' : 'DRAFT';
         this.db.run(
-          `UPDATE rule SET status = ?, name = ?, description = ?, enrollment_mode = ?, priority = ?, featured = ?, definition_json = ?, definition_hash = ?, updated_by = ?, updated_at = ? WHERE rule_code = ?`,
-          status, rule.name, rule.description ?? null, rule.enrollment, rule.priority, rule.featured ? 1 : 0, JSON.stringify(rule), hash, actor.username, now, rule.code,
+          `UPDATE rule SET status = ?, name = ?, description = ?, enrollment_mode = ?, product_scope = ?, effective_from = ?, effective_to = ?, priority = ?, featured = ?, definition_json = ?, definition_hash = ?, updated_by = ?, updated_at = ? WHERE rule_code = ?`,
+          status, rule.name, rule.description ?? null, rule.enrollment, rule.productScope, rule.effective.from, rule.effective.to, rule.priority, rule.featured ? 1 : 0, JSON.stringify(rule), hash, actor.username, now, rule.code,
         );
         audit(this.db, this.clock, actor, 'RULE_EDIT', 'rule', rule.code, { note, was: existing.status });
       } else {
         this.db.run(
-          `INSERT INTO rule(rule_code, family, template_code, status, name, description, enrollment_mode, priority, featured, definition_json, definition_hash, created_by, created_at, updated_by, updated_at)
-           VALUES (?,?,?,'DRAFT',?,?,?,?,?,?,?,?,?,?,?)`,
-          rule.code, v.template!.family, rule.template, rule.name, rule.description ?? null, rule.enrollment, rule.priority, rule.featured ? 1 : 0, JSON.stringify(rule), hash, actor.username, now, actor.username, now,
+          `INSERT INTO rule(rule_code, family, template_code, status, name, description, enrollment_mode, product_scope, effective_from, effective_to, priority, featured, definition_json, definition_hash, created_by, created_at, updated_by, updated_at)
+           VALUES (?,?,?,'DRAFT',?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          rule.code, v.template!.family, rule.template, rule.name, rule.description ?? null, rule.enrollment, rule.productScope, rule.effective.from, rule.effective.to, rule.priority, rule.featured ? 1 : 0, JSON.stringify(rule), hash, actor.username, now, actor.username, now,
         );
         audit(this.db, this.clock, actor, 'RULE_CREATE', 'rule', rule.code, { note });
       }
@@ -272,10 +275,12 @@ export class Catalog {
           liveVersion: rv.status === 'ACTIVE' || rv.status === 'PAUSED' ? 1 : null,
           liveStatus: rv.status === 'ACTIVE' || rv.status === 'PAUSED' ? rv.status : null,
           segments: doc.segments ?? [],
+          states: doc.states ?? [],
+          productScope: rv.product_scope ?? doc.productScope ?? 'ANY',
           featured: !!rv.featured,
           enrollment: rv.enrollment_mode,
-          effectiveFrom: doc.effective?.from ?? null,
-          effectiveTo: doc.effective?.to ?? null,
+          effectiveFrom: rv.effective_from ?? doc.effective?.from ?? null,
+          effectiveTo: rv.effective_to ?? doc.effective?.to ?? null,
           summary,
           updatedAt: rv.updated_at,
         };
@@ -291,7 +296,7 @@ export class Catalog {
       participants: this.db.value<number>("SELECT COUNT(DISTINCT customer_id) FROM rule_state WHERE prefix = 'w|' AND rule_code = ?", code) ?? 0,
       activeSettings: this.db.value<number>("SELECT COUNT(*) FROM customer_setting WHERE rule_code = ? AND status = 'ACTIVE'", code) ?? 0,
       pointsAwarded: this.db.value<number>('SELECT COALESCE(SUM(points),0) FROM points_ledger WHERE rule_code = ?', code) ?? 0,
-      breaches: this.db.value<number>('SELECT COUNT(*) FROM spend_control_breach WHERE rule_code = ?', code) ?? 0,
+      breaches: this.db.value<number>("SELECT COUNT(*) FROM rule_evaluation WHERE rule_code = ? AND outcome = 'BREACH'", code) ?? 0,
       windowsMet: this.db.value<number>("SELECT COUNT(*) FROM rule_state WHERE prefix = 'w|' AND rule_code = ? AND json_extract(state_json,'$.outcome') IN ('GOAL_MET','COMPLIANT')", code) ?? 0,
     };
     const valueDistribution =

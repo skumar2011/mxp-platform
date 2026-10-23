@@ -55,6 +55,7 @@
         "categories": { "options": ["TRAVEL", "DINING", "SHOPPING", "ENTERTAINMENT"], "default": ["TRAVEL", "DINING"], "maxItems": 4 },
         "limit": { "min": 10000, "max": 1000000, "step": 1000, "default": 150000 }
       },
+      "productScope": "CREDIT_CARD",
       "effective": { "from": "2026-01-01" }, "tags": ["emphasis:travel-dining"]
     },
     {
@@ -82,26 +83,30 @@
       "kind": "Rule", "code": "AMB_DAYS_MASS", "template": "AVG_BALANCE_DAYS", "name": "Balance ₹10K for 20 days – Mass",
       "segments": ["MASS", "YOUTH"],
       "params": { "threshold": 10000, "days": 20, "points": 200 },
+      "productScope": "CASA",
       "effective": { "from": "2026-01-01" }
     },
     {
       "kind": "Rule", "code": "AMB_DAYS_AFFLUENT", "template": "AVG_BALANCE_DAYS", "name": "Balance ₹2L for 20 days – Affluent",
       "segments": ["AFFLUENT"],
       "params": { "threshold": 200000, "days": 20, "points": 500 },
+      "productScope": "CASA",
       "effective": { "from": "2026-01-01" }
     },
     {
       "kind": "Rule", "code": "AMB_AVG_AFFLUENT", "template": "AVG_MONTHLY_BALANCE", "name": "Average Monthly Balance – Affluent",
       "segments": ["AFFLUENT"],
       "params": { "tier1": 500000, "points1": 300, "tier2": 1000000, "points2": 700 },
+      "productScope": "CASA",
       "effective": { "from": "2026-01-01" }
     },
     {
       "kind": "Rule", "code": "UPI_STREAK_MASS", "template": "UPI_TXN_COUNT", "name": "UPI Streak – 10 payments a month",
-      "description": "Featured mission for Mass customers.",
+      "description": "Featured mission for Mass customers in selected states.",
       "segments": ["MASS", "YOUTH"], "featured": true,
+      "states": ["MH", "KA", "DL", "TN", "GJ"],
       "params": { "target": 10, "points": 150, "minAmount": 50, "maxPerDay": 3 },
-      "effective": { "from": "2026-01-01" }
+      "effective": { "from": "2026-01-01", "to": "2027-12-31" }
     },
     {
       "kind": "Rule", "code": "REFERRAL_STD", "template": "REFER_A_CUSTOMER", "name": "Refer a Friend",

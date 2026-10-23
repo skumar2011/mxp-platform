@@ -36,7 +36,7 @@ export class Queries {
       failedEvents: d.value<number>(`SELECT COUNT(*) FROM "transaction" WHERE status = 'FAILED'`) ?? 0,
       points: d.get<any>(`SELECT COALESCE(SUM(CASE WHEN points > 0 THEN points END),0) AS awarded, COALESCE(-SUM(CASE WHEN points < 0 THEN points END),0) AS clawed,
         COALESCE(SUM(CASE WHEN family = 'MISSION' AND points > 0 THEN points END),0) AS missions, COALESCE(SUM(CASE WHEN family = 'SPEND_CONTROL' AND points > 0 THEN points END),0) AS controls FROM points_ledger`),
-      breaches30d: d.value<number>('SELECT COUNT(*) FROM spend_control_breach WHERE occurred_at >= ?', since) ?? 0,
+      breaches30d: d.value<number>("SELECT COUNT(*) FROM rule_evaluation WHERE outcome = 'BREACH' AND evaluated_at >= ?", since) ?? 0,
       decisions: d.all<any>('SELECT decision, COUNT(*) AS n FROM control_decision GROUP BY decision'),
       topRules: d.all<any>(`SELECT rule_code, family, SUM(points) AS points, COUNT(*) AS entries FROM points_ledger WHERE rule_code IS NOT NULL GROUP BY rule_code, family ORDER BY points DESC LIMIT 8`),
       outcomes: d.all<any>(`SELECT json_extract(state_json,'$.family') AS family, json_extract(state_json,'$.outcome') AS outcome, COUNT(*) AS n
@@ -55,7 +55,17 @@ export class Queries {
     const { engine } = this.catalog.engine();
     const segments = this.db.all<any>('SELECT * FROM segment WHERE active = 1 ORDER BY sort_order');
     return segments.map((s) => {
-      const ctx = { customer: { id: 'preview', segment: s.segment_code, timezone: engine.pack.timezone, dormancy_risk: false, status: 'ACTIVE' } };
+      const ctx = {
+        customer: {
+          id: 'preview',
+          segment: s.segment_code,
+          state: 'MH',
+          timezone: engine.pack.timezone,
+          dormancy_risk: false,
+          status: 'ACTIVE',
+          products: ['SAVINGS', 'CURRENT', 'DEBIT_CARD', 'CREDIT_CARD'],
+        },
+      };
       const offers = engine.availableFor(ctx).map((o) => {
         const r = engine.getRule(o.code)!;
         return { ...o, params: r.rule.params, customerParams: r.rule.customerParams, tags: r.rule.tags, description: r.rule.description };
@@ -72,20 +82,28 @@ export class Queries {
       ["(c.display_name LIKE ? OR c.customer_ref LIKE ? OR c.customer_id LIKE ?)", f.q ? `%${f.q}%` : undefined],
     ]);
     const params = f.q ? [...p, `%${f.q}%`, `%${f.q}%`] : p;
-    return this.db.all<any>(`SELECT c.customer_id, c.customer_ref, c.display_name, c.segment_code, c.timezone, c.dormancy_risk, c.status, c.created_at, COALESCE(a.balance,0) AS points,
+    return this.db.all<any>(`SELECT c.customer_id, c.customer_ref, c.display_name, c.segment_code, c.state_code, c.timezone, c.dormancy_risk, c.status, c.created_at,
+        COALESCE((SELECT SUM(balance) FROM points_account a WHERE a.customer_id = c.customer_id),0) AS points,
         (SELECT COUNT(*) FROM customer_setting s WHERE s.customer_id = c.customer_id AND s.status = 'ACTIVE') AS controls,
         (SELECT MAX(occurred_at) FROM "transaction" e WHERE e.customer_id = c.customer_id) AS last_event_at
-      FROM customer c LEFT JOIN points_account a ON a.customer_id = c.customer_id ${w} ORDER BY c.segment_code, c.display_name LIMIT ${l} OFFSET ${o}`, ...(params as any[]));
+      FROM customer c ${w} ORDER BY c.segment_code, c.display_name LIMIT ${l} OFFSET ${o}`, ...(params as any[]));
   }
 
   customer360(id: string) {
     const c = this.part.customerRow(id);
     const cid = c.customer_id;
+    const accountPoints = this.db.all<any>('SELECT * FROM points_account WHERE customer_id = ? ORDER BY account_id', cid);
+    const points = {
+      balance: accountPoints.reduce((s, a) => s + a.balance, 0),
+      lifetime_earned: accountPoints.reduce((s, a) => s + a.lifetime_earned, 0),
+      lifetime_clawed: accountPoints.reduce((s, a) => s + a.lifetime_clawed, 0),
+      byAccount: accountPoints,
+    };
     return {
       customer: { ...c, attributes: parseJson(c.attributes_json, {}), attributes_json: undefined },
       context: this.part.contextFor(cid).customer,
       accounts: this.part.accountsOf(cid),
-      points: this.db.get<any>('SELECT * FROM points_account WHERE customer_id = ?', cid) ?? { balance: 0, lifetime_earned: 0, lifetime_clawed: 0 },
+      points,
       offers: this.part.offers(cid),
       settings: this.db.all<any>(`SELECT setting_id, status, created_via, updated_at AS created_at, cancelled_at, rule_code, values_json, effective_from, pending_values_json, pending_from
         FROM customer_setting WHERE customer_id = ? ORDER BY rule_code`, cid)
@@ -147,17 +165,37 @@ export class Queries {
       ${w} ORDER BY COALESCE(ev.occurred_at, e.evaluated_at) DESC, e.rowid DESC LIMIT ${l} OFFSET ${o}`, ...(p as any[])).map((r) => ({ ...r, trace: parseJson(r.trace_json, null), trace_json: undefined }));
   }
 
-  ledger(f: { customerId?: string; ruleCode?: string; entryType?: string } & Page = {}) {
+  ledger(f: { customerId?: string; accountId?: string; ruleCode?: string; entryType?: string } & Page = {}) {
     const [l, o] = lim(f);
-    const [w, p] = where([['l.customer_id = ?', f.customerId], ['l.rule_code = ?', f.ruleCode], ['l.entry_type = ?', f.entryType]]);
+    const [w, p] = where([['l.customer_id = ?', f.customerId], ['l.account_id = ?', f.accountId], ['l.rule_code = ?', f.ruleCode], ['l.entry_type = ?', f.entryType]]);
     return this.db.all<any>(`SELECT l.*, c.display_name FROM points_ledger l LEFT JOIN customer c ON c.customer_id = l.customer_id ${w} ORDER BY l.ledger_id DESC LIMIT ${l} OFFSET ${o}`, ...(p as any[]));
   }
 
+  dwhBatches(limit = 50) {
+    return this.db.all<any>('SELECT * FROM dwh_batch ORDER BY started_at DESC LIMIT ?', limit);
+  }
+
+  /** Limit breaches = rule_evaluation rows with outcome BREACH (aliases match the admin UI). */
   breaches(f: { customerId?: string; ruleCode?: string } & Page = {}) {
     const [l, o] = lim(f);
-    const [w, p] = where([['b.customer_id = ?', f.customerId], ['b.rule_code = ?', f.ruleCode]]);
-    return this.db.all<any>(`SELECT b.*, c.display_name, ev.occurred_at AS event_at FROM spend_control_breach b LEFT JOIN customer c ON c.customer_id = b.customer_id LEFT JOIN "transaction" ev ON ev.event_id = b.event_id
-      ${w} ORDER BY b.occurred_at DESC, b.rowid DESC LIMIT ${l} OFFSET ${o}`, ...(p as any[]));
+    const [w, p] = where([
+      ['e.customer_id = ?', f.customerId],
+      ['e.rule_code = ?', f.ruleCode],
+    ]);
+    const whereSql = w ? `${w} AND e.outcome = 'BREACH'` : `WHERE e.outcome = 'BREACH'`;
+    return this.db.all<any>(
+      `SELECT e.evaluation_id AS breach_id, e.evaluation_id, e.customer_id, e.account_id, e.rule_code, e.setting_id, e.window_key, e.event_id,
+              e.target_value AS limit_value, e.measure_after AS measured_value, e.decision AS action,
+              COALESCE(ev.occurred_at, e.evaluated_at) AS occurred_at, e.evaluated_at AS recorded_at,
+              c.display_name, ev.occurred_at AS event_at
+       FROM rule_evaluation e
+       LEFT JOIN customer c ON c.customer_id = e.customer_id
+       LEFT JOIN "transaction" ev ON ev.event_id = e.event_id
+       ${whereSql}
+       ORDER BY COALESCE(ev.occurred_at, e.evaluated_at) DESC, e.rowid DESC
+       LIMIT ${l} OFFSET ${o}`,
+      ...(p as any[]),
+    );
   }
 
   decisions(f: { customerId?: string; decision?: string } & Page = {}) {

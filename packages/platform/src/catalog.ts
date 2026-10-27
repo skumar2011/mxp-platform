@@ -15,7 +15,7 @@ import {
 import { CATALOG_TEMPLATES, EXTENSION_TEMPLATES, SAMPLE_REFERENCES } from '@mxp/rules/catalog';
 import { audit } from './audit';
 import type { Db } from './db';
-import { hashJson, MxpError, type Actor, type Clock } from './util';
+import { hashJson, MxpError, ruleScheduleStatus, type Actor, type Clock } from './util';
 
 export const PACK_CODE = 'mxp-retail';
 
@@ -251,7 +251,8 @@ export class Catalog {
     return this.row(code);
   }
 
-  listRules(f: { family?: string; status?: string; template?: string; q?: string } = {}) {
+  listRules(f: { family?: string; status?: string; schedule?: string; template?: string; q?: string } = {}) {
+    const today = this.now().slice(0, 10);
     const rows = this.db.all<RuleRow>(
       `SELECT * FROM rule WHERE 1=1 ${f.family ? 'AND family = ?' : ''} ${f.template ? 'AND template_code = ?' : ''} ${f.status ? 'AND status = ?' : ''} ORDER BY family DESC, rule_code`,
       ...([f.family, f.template, f.status].filter(Boolean) as string[]),
@@ -265,6 +266,9 @@ export class Catalog {
         } catch {
           /* ignore */
         }
+        const effectiveFrom = rv.effective_from ?? doc.effective?.from ?? null;
+        const effectiveTo = rv.effective_to ?? doc.effective?.to ?? null;
+        const scheduleStatus = ruleScheduleStatus(rv.status, effectiveFrom, effectiveTo, today);
         return {
           code: rv.rule_code,
           family: rv.family,
@@ -274,18 +278,20 @@ export class Catalog {
           latestStatus: rv.status,
           liveVersion: rv.status === 'ACTIVE' || rv.status === 'PAUSED' ? 1 : null,
           liveStatus: rv.status === 'ACTIVE' || rv.status === 'PAUSED' ? rv.status : null,
+          scheduleStatus,
           segments: doc.segments ?? [],
           states: doc.states ?? [],
           productScope: rv.product_scope ?? doc.productScope ?? 'ANY',
           featured: !!rv.featured,
           enrollment: rv.enrollment_mode,
-          effectiveFrom: rv.effective_from ?? doc.effective?.from ?? null,
-          effectiveTo: rv.effective_to ?? doc.effective?.to ?? null,
+          effectiveFrom,
+          effectiveTo,
           summary,
           updatedAt: rv.updated_at,
         };
       })
-      .filter((r) => !f.q || `${r.code} ${r.name}`.toLowerCase().includes(f.q.toLowerCase()));
+      .filter((r) => !f.q || `${r.code} ${r.name}`.toLowerCase().includes(f.q.toLowerCase()))
+      .filter((r) => !f.schedule || r.scheduleStatus === f.schedule);
   }
 
   getRule(code: string) {

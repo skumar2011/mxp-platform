@@ -26,6 +26,11 @@ describe('seed', () => {
     expect(c.customer.state_code).toBe('MH');
     expect(mx.catalog.listRules().find((r) => r.code === 'UPI_STREAK_MASS')?.states).toContain('MH');
     expect(mx.catalog.listRules().find((r) => r.code === 'AMB_DAYS_MASS')?.productScope).toBe('CASA');
+    const dash = mx.queries.dashboard();
+    expect(dash.ruleSchedule.RUNNING).toBeGreaterThan(0);
+    expect(dash.ruleSchedule.EXPIRED + dash.ruleSchedule.PAUSED + dash.ruleSchedule.DRAFT + dash.ruleSchedule.SCHEDULED + dash.ruleSchedule.RETIRED).toBeGreaterThanOrEqual(0);
+    expect(dash.achieved.windows).toBeGreaterThan(0);
+    expect(mx.catalog.listRules({ schedule: 'RUNNING' }).every((r) => r.scheduleStatus === 'RUNNING')).toBe(true);
   });
 
   it('records the expected persona outcomes', () => {

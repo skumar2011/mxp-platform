@@ -1,8 +1,9 @@
 import type { Catalog } from './catalog';
 import type { Db } from './db';
 import type { Participation } from './participation';
-import { MxpError, parseJson, uid, type Actor, type Clock } from './util';
+import { MxpError, parseJson, ruleScheduleStatus, uid, type Actor, type Clock } from './util';
 import { audit } from './audit';
+import { localParts } from '@mxp/rules';
 
 export interface Page {
   limit?: number;
@@ -27,8 +28,27 @@ export class Queries {
   dashboard() {
     const d = this.db;
     const since = new Date(this.clock.now().getTime() - 30 * 86400000).toISOString();
+    const today = localParts(this.clock.now().toISOString(), this.catalog.engine().engine.pack.timezone).date;
+    const scheduleCounts = { RUNNING: 0, SCHEDULED: 0, EXPIRED: 0, PAUSED: 0, DRAFT: 0, RETIRED: 0 };
+    for (const r of d.all<{ status: string; effective_from: string | null; effective_to: string | null }>('SELECT status, effective_from, effective_to FROM rule')) {
+      const s = ruleScheduleStatus(r.status, r.effective_from, r.effective_to, today);
+      scheduleCounts[s] = (scheduleCounts[s] ?? 0) + 1;
+    }
+    // Achieved = closed windows where the customer met the goal / stayed compliant.
+    const achievedWindows =
+      d.value<number>(
+        `SELECT COUNT(*) FROM rule_state WHERE prefix = 'w|' AND status = 'CLOSED'
+         AND json_extract(state_json,'$.outcome') IN ('GOAL_MET','COMPLIANT','AWARDED')`,
+      ) ?? 0;
+    const achievedCustomers =
+      d.value<number>(
+        `SELECT COUNT(DISTINCT customer_id) FROM rule_state WHERE prefix = 'w|' AND status = 'CLOSED'
+         AND json_extract(state_json,'$.outcome') IN ('GOAL_MET','COMPLIANT','AWARDED')`,
+      ) ?? 0;
     return {
       rules: d.all<any>(`SELECT family, status, COUNT(*) AS n FROM rule GROUP BY family, status`),
+      ruleSchedule: scheduleCounts,
+      achieved: { windows: achievedWindows, customers: achievedCustomers },
       pendingApprovals: d.value<number>("SELECT COUNT(*) FROM rule WHERE status = 'DRAFT'") ?? 0,
       customers: d.value<number>('SELECT COUNT(*) FROM customer') ?? 0,
       activeSettings: d.value<number>("SELECT COUNT(*) FROM customer_setting WHERE status = 'ACTIVE'") ?? 0,

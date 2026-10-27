@@ -13,6 +13,7 @@ export function Dashboard() {
   if (!d) return <Loading />;
   const count = (family: string, status: string) => d.rules.filter((r: any) => r.family === family && r.status === status).reduce((s: number, r: any) => s + r.n, 0);
   const dec = (k: string) => d.decisions.find((x: any) => x.decision === k)?.n ?? 0;
+  const sched = d.ruleSchedule ?? {};
   return (
     <div className="stack">
       <PageHead title="Dashboard" sub="Spend controls the customer sets, missions the bank sets, one rules engine." />
@@ -25,6 +26,12 @@ export function Dashboard() {
         {d.pendingApprovals > 0 && <Link className="btn btn-primary" to="/rules?status=DRAFT">{d.pendingApprovals} draft{d.pendingApprovals === 1 ? '' : 's'}</Link>}
       </div>
       <div className="grid g4">
+        <Stat label="Running rules" value={num(sched.RUNNING)} sub="ACTIVE and within start/end dates" tone="green" />
+        <Stat label="Expired rules" value={num(sched.EXPIRED)} sub="past effective end date" tone={sched.EXPIRED ? 'amber' : undefined} />
+        <Stat label="Paused rules" value={num(sched.PAUSED)} sub="bank paused — not evaluating" tone={sched.PAUSED ? 'amber' : undefined} />
+        <Stat label="Achieved windows" value={num(d.achieved?.windows)} sub={`${num(d.achieved?.customers)} customers met a goal / stayed compliant`} tone="green" />
+      </div>
+      <div className="grid g4">
         <Stat label="Live spend controls" value={count('SPEND_CONTROL', 'ACTIVE')} sub="bank sets the rule, customer sets the value" />
         <Stat label="Live missions" value={count('MISSION', 'ACTIVE')} sub="bank sets the rule and the target" />
         <Stat label="Customer controls set" value={num(d.activeSettings)} sub={`${num(d.customers)} customers`} />
@@ -34,7 +41,7 @@ export function Dashboard() {
         <Stat label="Events (30 days)" value={num(d.events30d)} sub={d.failedEvents ? `${d.failedEvents} failed` : 'none failed'} tone={d.failedEvents ? 'red' : undefined} />
         <Stat label="Limit breaches (30 days)" value={num(d.breaches30d)} tone={d.breaches30d ? 'amber' : undefined} />
         <Stat label="Pre-auth decisions" value={num(d.decisions.reduce((s: number, x: any) => s + x.n, 0))} sub={`${dec('BLOCK')} blocked · ${dec('ALERT')} alerted · ${dec('WARN')} warned`} />
-        <Stat label="Drafts" value={d.pendingApprovals} tone={d.pendingApprovals ? 'amber' : undefined} sub="ready to activate" />
+        <Stat label="Drafts / scheduled" value={d.pendingApprovals} tone={d.pendingApprovals ? 'amber' : undefined} sub={`${num(sched.SCHEDULED)} scheduled to start · ${num(sched.RETIRED)} retired`} />
       </div>
       <div className="grid g-main">
         <Card title="Points per day (30 days)">
@@ -57,7 +64,11 @@ export function Dashboard() {
           { key: 'p', header: 'Net points', align: 'right', render: (r: any) => num(r.points) },
         ]} />
       </Card>
-      <small className="muted">{pretty('Rule status counts')}: {d.rules.map((r: any) => `${r.family === 'MISSION' ? 'missions' : 'controls'} ${pretty(r.status).toLowerCase()} ${r.n}`).join(' · ')}</small>
+      <small className="muted">
+        Schedule: running {num(sched.RUNNING)} · expired {num(sched.EXPIRED)} · paused {num(sched.PAUSED)} · scheduled {num(sched.SCHEDULED)} · draft {num(sched.DRAFT)} · retired {num(sched.RETIRED)}
+        {' · '}
+        {pretty('Lifecycle')}: {d.rules.map((r: any) => `${r.family === 'MISSION' ? 'missions' : 'controls'} ${pretty(r.status).toLowerCase()} ${r.n}`).join(' · ')}
+      </small>
     </div>
   );
 }

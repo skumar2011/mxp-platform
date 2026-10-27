@@ -55,7 +55,7 @@ export function catalogRoutes(app: FastifyInstance, { mx }: AppCtx) {
   app.get('/rules', async (req) => {
     need(req, 'rules:read');
     const q = req.query as any;
-    return C.listRules({ family: str(q.family), status: str(q.status), template: str(q.template), q: str(q.q) });
+    return C.listRules({ family: str(q.family), status: str(q.status), schedule: str(q.schedule), template: str(q.template), q: str(q.q) });
   });
   app.get('/rules/:code', async (req) => {
     need(req, 'rules:read');

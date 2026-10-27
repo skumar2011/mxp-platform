@@ -74,8 +74,8 @@ export function RuleEditor() {
                 <h2>{f === 'MISSION' ? 'Mission' : 'Spend control'}</h2>
                 <p className="muted" style={{ marginTop: 0 }}>{f === 'MISSION' ? 'Bank sets the goal and reward.' : 'Customer chooses their limit or merchants.'}</p>
                 {templates.data!.filter((x) => x.family === f).map((x) => (
-                  <button key={x.template_code} className="tpl" onClick={() => setTemplateCode(x.template_code)}>
-                    <div className="tpl-icon">{x.icon}</div><div><h3>{x.name}</h3><p>{x.summary}</p></div>
+                  <button key={x.code} className="tpl" onClick={() => setTemplateCode(x.code)}>
+                    <div className="tpl-icon">{x.icon ?? '◆'}</div><div><h3>{x.name}</h3><p>{x.summary}</p></div>
                   </button>
                 ))}
               </div>

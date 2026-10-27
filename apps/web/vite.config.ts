@@ -7,7 +7,7 @@ import react from '@vitejs/plugin-react';
 //   /testing/  Testing and Simulation app
 export default defineConfig({
   plugins: [react()],
-  server: { port: 5173, proxy: { '/api': 'http://127.0.0.1:4000' } },
+  server: { host: '127.0.0.1', port: 5173, proxy: { '/api': 'http://127.0.0.1:4000' } },
   build: {
     outDir: 'dist',
     sourcemap: false,

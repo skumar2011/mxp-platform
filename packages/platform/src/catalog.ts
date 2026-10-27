@@ -88,10 +88,13 @@ export class Catalog {
       name: t.name,
       summary: t.summary,
       category: t.category,
+      icon: t.icon ?? null,
       isExtension: EXTENSION_TEMPLATES.includes(t.code),
       version: t.version,
       params: t.params,
+      customerParams: t.params.filter((p) => p.setBy === 'CUSTOMER').map((p) => p.name),
       ruleCount: this.db.value<number>('SELECT COUNT(*) FROM rule WHERE template_code = ?', t.code) ?? 0,
+      liveRules: this.db.value<number>("SELECT COUNT(*) FROM rule WHERE template_code = ? AND status IN ('ACTIVE','PAUSED')", t.code) ?? 0,
     }));
   }
 

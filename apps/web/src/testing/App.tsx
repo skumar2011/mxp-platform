@@ -9,9 +9,9 @@ import { Lab } from './pages/Lab';
 
 const NAV: NavItem[] = [
   { to: '/', label: 'Simulator', icon: '▶' },
-  { to: '/scenarios', label: 'Scenarios', icon: '☑' },
-  { to: '/matrix', label: 'Boundary matrix', icon: '▦' },
-  { to: '/lab', label: 'Rule file lab', icon: '{ }' },
+  { to: '/scenarios', label: 'Saved scenarios', icon: '☑', section: 'Regression' },
+  { to: '/matrix', label: 'Boundary matrix', icon: '▦', section: 'Advanced' },
+  { to: '/lab', label: 'Rule file lab', icon: '{ }', section: 'Advanced' },
 ];
 
 export function App() {

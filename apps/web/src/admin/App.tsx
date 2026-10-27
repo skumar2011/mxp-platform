@@ -16,18 +16,19 @@ import { Audit } from './pages/Audit';
 
 const NAV: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: '▦' },
-  { to: '/catalog', label: 'Rule catalogue', icon: '❖', section: 'Configure' },
-  { to: '/rules', label: 'Bank rules', icon: '☰', section: 'Configure' },
-  { to: '/segments', label: 'By segment', icon: '◫', section: 'Configure' },
-  { to: '/packs', label: 'Rule packs', icon: '⇪', section: 'Configure' },
+  { to: '/rules', label: 'Rules', icon: '☰', section: 'Rules' },
+  { to: '/rules/new', label: 'Create rule', icon: '+', section: 'Rules', end: true },
   { to: '/customers', label: 'Customers', icon: '☺', section: 'Operate', perm: 'customers:read' },
   { to: '/activity', label: 'Activity', icon: '≋', section: 'Operate', perm: 'customers:read' },
-  { to: '/audit', label: 'Audit trail', icon: '☷', section: 'Govern', perm: 'audit:read' },
+  { to: '/catalog', label: 'Templates', icon: '❖', section: 'More' },
+  { to: '/packs', label: 'Live pack', icon: '⇪', section: 'More' },
+  { to: '/segments', label: 'By segment', icon: '◫', section: 'More' },
+  { to: '/audit', label: 'Audit', icon: '☷', section: 'More', perm: 'audit:read' },
 ];
 
 export function App() {
   return (
-    <Layout title="MXP Admin" mark="XP" nav={NAV} other={{ label: 'Testing app', href: '/testing/' }}>
+    <Layout title="MXP Admin" mark="XP" nav={NAV} other={{ label: 'Test rules', href: '/testing/' }}>
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/catalog" element={<Catalog />} />

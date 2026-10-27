@@ -21,7 +21,7 @@ export function Layout({ title, mark, nav, other, children }: { title: string; m
             return (
               <div key={n.to}>
                 {sec && <div className="sec">{sec}</div>}
-                <NavLink to={n.to} end={n.to === '/'} className={({ isActive }) => (isActive ? 'active' : '')}><span aria-hidden>{n.icon}</span>{n.label}</NavLink>
+                <NavLink to={n.to} end={n.end ?? n.to === '/'} className={({ isActive }) => (isActive ? 'active' : '')}><span aria-hidden>{n.icon}</span>{n.label}</NavLink>
               </div>
             );
           })}

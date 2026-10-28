@@ -105,8 +105,8 @@ export function Simulator() {
 
   return (
     <div className="stack">
-      <PageHead title="Simulator" sub="Pick a customer, let them set their spend controls, send events and close windows. Every decision, point and breach is explained."
-        actions={<><Button onClick={reset}>Reset journey</Button><Button variant="primary" disabled={!steps.length} onClick={() => setSaving(true)}>Save as scenario</Button></>} />
+      <PageHead title="Test a rule" sub="Pick a customer persona, set spend controls if needed, send sample transactions, and see awards, breaches and decisions."
+        actions={<><Button onClick={reset}>Reset</Button><Button variant="primary" disabled={!steps.length} onClick={() => setSaving(true)}>Save as scenario</Button></>} />
       <PackPicker />
       <div className="grid g-main" style={{ alignItems: 'start' }}>
         <div className="stack">

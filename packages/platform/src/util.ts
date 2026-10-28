@@ -25,6 +25,26 @@ export class MxpError extends Error {
   }
 }
 
+/** Operational schedule status combining lifecycle + effective dates. */
+export type RuleScheduleStatus = 'RUNNING' | 'SCHEDULED' | 'EXPIRED' | 'PAUSED' | 'DRAFT' | 'RETIRED';
+
+export function ruleScheduleStatus(
+  status: string,
+  effectiveFrom: string | null | undefined,
+  effectiveTo: string | null | undefined,
+  today: string,
+): RuleScheduleStatus {
+  if (status === 'PAUSED') return 'PAUSED';
+  if (status === 'DRAFT') return 'DRAFT';
+  if (status === 'RETIRED') return 'RETIRED';
+  if (status === 'ACTIVE') {
+    if (effectiveFrom && effectiveFrom > today) return 'SCHEDULED';
+    if (effectiveTo && effectiveTo < today) return 'EXPIRED';
+    return 'RUNNING';
+  }
+  return 'DRAFT';
+}
+
 export interface Actor {
   username: string;
   roles: string[];

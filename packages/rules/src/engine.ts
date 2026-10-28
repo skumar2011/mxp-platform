@@ -11,7 +11,7 @@
  * them to its own ledger.
  */
 import { evalCondition, type CondTrace } from './conditions';
-import { DEFAULT_FACTS, DEFAULT_REFERENCES, factIndex, frameOf, resolvePath, type FactFrame } from './facts';
+import { DEFAULT_FACTS, DEFAULT_REFERENCES, factIndex, familiesForProductScope, frameOf, resolvePath, type FactFrame } from './facts';
 import { describeRule, money, num } from './format';
 import { checkCustomerValues, effectiveParam, resolveValues, substitute, type Issue } from './params';
 import {
@@ -65,6 +65,7 @@ export interface Evaluation {
 
 interface EffectBase {
   customerId: string;
+  accountId: string | null;
   ruleCode: string;
   ruleVersion: number;
   family: Family;
@@ -334,8 +335,18 @@ export class RulesEngine {
   private eligible(rule: Rule, frame: FactFrame, ctx: EvalContext): CondTrace {
     const segOk = !rule.segments.length || rule.segments.includes(String(ctx.customer.segment ?? ''));
     const seg: CondTrace = { pass: segOk, text: rule.segments.length ? `customer.segment in [${rule.segments.join(', ')}] (actual ${ctx.customer.segment ?? '∅'})` : 'all segments' };
+    const stateOk = !rule.states.length || rule.states.includes(String(ctx.customer.state ?? ''));
+    const geo: CondTrace = { pass: stateOk, text: rule.states.length ? `customer.state in [${rule.states.join(', ')}] (actual ${ctx.customer.state ?? '∅'})` : 'all states' };
+    const allowed = familiesForProductScope(rule.productScope);
+    const family = String(ctx.account?.product_family ?? resolvePath(frame, 'event.product_family') ?? '');
+    const held = Array.isArray(ctx.customer.products) ? (ctx.customer.products as string[]) : [];
+    const prodOk = !allowed || (family ? allowed.includes(family) : held.some((p) => allowed.includes(p)));
+    const prod: CondTrace = {
+      pass: prodOk,
+      text: rule.productScope === 'ANY' ? 'any product' : `productScope ${rule.productScope} (actual ${family || held.join(',') || '∅'})`,
+    };
     const cond = evalCondition(rule.eligibility, frame);
-    return { pass: seg.pass && cond.pass, text: 'eligibility', children: [seg, cond] };
+    return { pass: seg.pass && geo.pass && prod.pass && cond.pass, text: 'eligibility', children: [seg, geo, prod, cond] };
   }
 
   private instances(c: Compiled, event: MxpEvent, ctx: EvalContext): Instance[] {
@@ -458,7 +469,7 @@ export class RulesEngine {
     w.points += p;
     life.points += p;
     life.awards += 1;
-    const base = { customerId: w.customerId, ruleCode: c.rule.code, ruleVersion: c.rule.version, family: c.family, subjectKey: w.subjectKey, windowKey: w.windowKey };
+    const base = { customerId: w.customerId, accountId: w.accountId ?? null, ruleCode: c.rule.code, ruleVersion: c.rule.version, family: c.family, subjectKey: w.subjectKey, windowKey: w.windowKey };
     effects.push({ ...base, type: 'AWARD', slot, points: p, idempotencyKey: `AWARD|${c.rule.code}|${w.subjectKey}|${w.windowKey}|${slot}|${trigger}`, reason, eventId: trigger === 'close' ? undefined : trigger });
     effects.push({ ...base, type: 'NUDGE', kind: 'AWARDED', message: `You earned ${num(p)} points: ${c.rule.name}.`, dedupeKey: `AWARDED|${c.rule.code}|${w.subjectKey}|${w.windowKey}|${slot}|${trigger}` });
     return p;
@@ -471,7 +482,7 @@ export class RulesEngine {
     w.points -= p;
     life.points -= p;
     life.awards = Math.max(0, life.awards - 1);
-    const base = { customerId: w.customerId, ruleCode: c.rule.code, ruleVersion: c.rule.version, family: c.family, subjectKey: w.subjectKey, windowKey: w.windowKey, eventId };
+    const base = { customerId: w.customerId, accountId: w.accountId ?? null, ruleCode: c.rule.code, ruleVersion: c.rule.version, family: c.family, subjectKey: w.subjectKey, windowKey: w.windowKey, eventId };
     effects.push({ ...base, type: 'CLAWBACK', slot, points: -p, idempotencyKey: `CLAWBACK|${c.rule.code}|${w.subjectKey}|${w.windowKey}|${slot}|${eventId}`, reason });
     effects.push({ ...base, type: 'NUDGE', kind: 'CLAWBACK', message: `${num(p)} points from ${c.rule.name} were reversed: ${reason}`, dedupeKey: `CLAWBACK|${c.rule.code}|${w.subjectKey}|${w.windowKey}|${slot}|${eventId}` });
     return -p;
@@ -567,7 +578,7 @@ export class RulesEngine {
     st.set(xKey(c.rule.code, inst.subjectKey, event.id), { key: xKey(c.rule.code, inst.subjectKey, event.id), windowKey: win.key, cKey } satisfies IndexEntry);
     Object.assign(ev, { before, after });
 
-    const base = { customerId: event.customerId, ruleCode: c.rule.code, ruleVersion: c.rule.version, family: c.family, subjectKey: inst.subjectKey, windowKey: win.key, eventId: event.id };
+    const base = { customerId: event.customerId, accountId: inst.accountId ?? event.accountId ?? null, ruleCode: c.rule.code, ruleVersion: c.rule.version, family: c.family, subjectKey: inst.subjectKey, windowKey: win.key, eventId: event.id };
     const save = () => {
       st.set(key, w);
       st.set(life.key, life);
@@ -724,7 +735,7 @@ export class RulesEngine {
     const s = life.streak ?? { current: 0, best: 0, last: null, run: 1 };
     const before = s.current;
     w.activity += 1;
-    const base = { customerId: event.customerId, ruleCode: c.rule.code, ruleVersion: c.rule.version, family: c.family, subjectKey: inst.subjectKey, windowKey: win.key, eventId: event.id };
+    const base = { customerId: event.customerId, accountId: inst.accountId ?? event.accountId ?? null, ruleCode: c.rule.code, ruleVersion: c.rule.version, family: c.family, subjectKey: inst.subjectKey, windowKey: win.key, eventId: event.id };
     const save = () => {
       life.streak = s;
       w.value = s.current;
@@ -784,7 +795,7 @@ export class RulesEngine {
     const life = st.get<LifetimeState>(lKey(w.ruleCode, w.subjectKey)) ?? { key: lKey(w.ruleCode, w.subjectKey), points: 0, awards: 0 };
     const logic = substitute(c.template.logic, w.params) as Logic;
     const saveLife = () => st.set(life.key, life);
-    const base = { customerId: w.customerId, ruleCode: c.rule.code, ruleVersion: c.rule.version, family: c.family, subjectKey: w.subjectKey, windowKey: w.windowKey };
+    const base = { customerId: w.customerId, accountId: w.accountId ?? null, ruleCode: c.rule.code, ruleVersion: c.rule.version, family: c.family, subjectKey: w.subjectKey, windowKey: w.windowKey };
 
     if (c.family === 'SPEND_CONTROL') {
       if (contextFor && w.settingId) {

@@ -17,13 +17,27 @@ export const EVENT_TYPES = [
   'FD_MATURITY',
 ] as const;
 
+/** Product families that count as CASA (or CASA-linked debit) for productScope filtering. */
+export const CASA_PRODUCT_FAMILIES = ['SAVINGS', 'CURRENT', 'DEBIT_CARD'] as const;
+export const CREDIT_CARD_PRODUCT_FAMILIES = ['CREDIT_CARD'] as const;
+
+export function familiesForProductScope(scope: 'ANY' | 'CASA' | 'CREDIT_CARD'): string[] | null {
+  if (scope === 'ANY') return null;
+  if (scope === 'CASA') return [...CASA_PRODUCT_FAMILIES];
+  return [...CREDIT_CARD_PRODUCT_FAMILIES];
+}
+
 export const DEFAULT_REFERENCES: Record<string, string[]> = {
   event_types: [...EVENT_TYPES],
   segments: ['MASS', 'AFFLUENT', 'YOUTH', 'SENIOR'],
+  states: [
+    'AN', 'AP', 'AR', 'AS', 'BR', 'CH', 'CT', 'DH', 'DL', 'GA', 'GJ', 'HP', 'HR', 'JH', 'JK', 'KA', 'KL', 'LA', 'LD', 'MH', 'ML', 'MN', 'MP', 'MZ', 'NL', 'OD', 'PB', 'PY', 'RJ', 'SK', 'TN', 'TS', 'UK', 'UP', 'WB',
+  ],
   channels: ['CARD_POS', 'CARD_ONLINE', 'UPI', 'ATM', 'NETBANKING', 'BRANCH'],
   txn_types: ['PURCHASE', 'ATM_WITHDRAWAL', 'CASH_ADVANCE', 'P2P_TRANSFER', 'BILL_PAYMENT', 'SELF_TRANSFER', 'INTERNATIONAL_POS', 'REFUND'],
   categories: ['FOOD_GROCERY', 'DINING', 'TRAVEL', 'SHOPPING', 'ENTERTAINMENT', 'FUEL', 'UTILITIES', 'HEALTH', 'EDUCATION', 'GAMBLING', 'OTHER'],
   product_families: ['SAVINGS', 'CURRENT', 'CREDIT_CARD', 'DEBIT_CARD', 'RECURRING_DEPOSIT', 'FIXED_DEPOSIT', 'PERSONAL_LOAN', 'HOME_LOAN', 'INSURANCE', 'MUTUAL_FUND'],
+  product_scopes: ['ANY', 'CASA', 'CREDIT_CARD'],
   account_types: ['SAVINGS', 'CURRENT', 'CREDIT_CARD', 'RECURRING_DEPOSIT', 'FIXED_DEPOSIT', 'LOAN'],
   application_status: ['SUBMITTED', 'APPROVED', 'REJECTED'],
   fd_actions: ['RENEW', 'ROLLOVER', 'PAYOUT'],
@@ -65,8 +79,10 @@ export const DEFAULT_FACTS: FactDef[] = [
   { path: 'event.type', label: 'Event type', type: 'enum', valuesFrom: 'event_types' },
   // customer / account context
   { path: 'customer.segment', label: 'Customer segment', type: 'enum', valuesFrom: 'segments' },
+  { path: 'customer.state', label: 'Customer home state', type: 'enum', valuesFrom: 'states' },
   { path: 'customer.status', label: 'Customer status', type: 'enum', values: ['ACTIVE', 'INACTIVE', 'BLOCKED', 'CLOSED'] },
   { path: 'customer.kyc_status', label: 'KYC status', type: 'enum', values: ['FULL', 'MINIMAL', 'PENDING'] },
+  { path: 'account.product_family', label: 'Account product family', type: 'enum', valuesFrom: 'product_families' },
   { path: 'customer.days_since_last_txn', label: 'Days since last transaction', type: 'number' },
   { path: 'customer.products', label: 'Products held', type: 'array', valuesFrom: 'product_families' },
   { path: 'customer.tenure_days', label: 'Relationship age (days)', type: 'number' },

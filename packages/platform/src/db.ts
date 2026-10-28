@@ -97,7 +97,7 @@ export class Db {
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 5;
 
 export function schemaSql(): string {
   return readFileSync(join(here, 'schema.sql'), 'utf8');
@@ -107,7 +107,7 @@ export function migrate(db: Db): void {
   db.exec('CREATE TABLE IF NOT EXISTS schema_migration (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)');
   const applied = db.value<number>('SELECT MAX(version) FROM schema_migration');
   if (applied && applied >= SCHEMA_VERSION) return;
-  if (applied && applied < SCHEMA_VERSION) throw new Error(`Database is at schema v${applied}; MXP v3 needs a fresh database (delete it or run the seed with --force).`);
+  if (applied && applied < SCHEMA_VERSION) throw new Error(`Database is at schema v${applied}; MXP v5 needs a fresh database (delete it or run the seed with --force).`);
   db.exec(schemaSql());
   db.run('INSERT INTO schema_migration(version, applied_at) VALUES (?, ?)', SCHEMA_VERSION, new Date().toISOString());
 }

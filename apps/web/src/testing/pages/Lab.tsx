@@ -63,7 +63,7 @@ export function Lab() {
   });
   const sampleRuleFor = (t: RuleTemplate): Rule => ({
     kind: 'Rule', code: `${t.code}_LAB`.slice(0, 40), version: 1, template: t.code, name: `${t.name} (lab)`, description: 'Sample instance generated in the rule lab.', status: 'ACTIVE',
-    segments: [], enrollment: 'AUTO', priority: 100, featured: false, tags: ['lab'], effective: { from: null, to: null }, settingsPolicy: { changeEffective: 'IMMEDIATE', cooldownDays: 0 },
+    segments: [], states: [], productScope: 'ANY', enrollment: 'AUTO', priority: 100, featured: false, tags: ['lab'], effective: { from: null, to: null }, settingsPolicy: { changeEffective: 'IMMEDIATE', cooldownDays: 0 },
     params: Object.fromEntries(t.params.filter((p) => p.setBy === 'BANK' && p.default !== undefined).map((p) => [p.name, p.default])),
     customerParams: {},
   });

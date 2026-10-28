@@ -66,15 +66,16 @@ export function RuleEditor() {
   if (!tCode) {
     return (
       <div className="stack">
-        <PageHead title="New bank rule" sub="Start from a catalogue template." />
+        <PageHead title="Create rule" sub="Pick a mission (bank target) or spend control (customer sets the value). Save as draft, then publish." />
         {!templates.data ? <Loading /> : (
           <div className="cat-cols">
-            {['SPEND_CONTROL', 'MISSION'].map((f) => (
+            {['MISSION', 'SPEND_CONTROL'].map((f) => (
               <div key={f} className="cat-col">
-                <h2>{f === 'MISSION' ? '🎯 Mission' : '💳 Spend control'}</h2>
+                <h2>{f === 'MISSION' ? 'Mission' : 'Spend control'}</h2>
+                <p className="muted" style={{ marginTop: 0 }}>{f === 'MISSION' ? 'Bank sets the goal and reward.' : 'Customer chooses their limit or merchants.'}</p>
                 {templates.data!.filter((x) => x.family === f).map((x) => (
-                  <button key={x.template_code} className="tpl" onClick={() => setTemplateCode(x.template_code)}>
-                    <div className="tpl-icon">{x.icon}</div><div><h3>{x.name}</h3><p>{x.summary}</p></div>
+                  <button key={x.code} className="tpl" onClick={() => setTemplateCode(x.code)}>
+                    <div className="tpl-icon">{x.icon ?? '◆'}</div><div><h3>{x.name}</h3><p>{x.summary}</p></div>
                   </button>
                 ))}
               </div>
@@ -97,7 +98,7 @@ export function RuleEditor() {
     setBusy(true); setSaveErr(null);
     try {
       const r = editing ? await api<any>(`/rules/${code}/versions/${v}`, { method: 'PUT', body: { rule: doc, note: note || undefined } }) : await api<any>('/rules', { body: { rule: doc, note: note || undefined } });
-      toast.ok(`Saved ${r.rule_code} v${r.version_no} as draft.`);
+      toast.ok(`Saved ${r.rule_code} as draft. Publish it from the next screen.`);
       nav(`/rules/${r.rule_code}`);
     } catch (e) { setSaveErr(e); setBusy(false); }
   };
@@ -105,10 +106,11 @@ export function RuleEditor() {
   return (
     <div className="stack">
       <PageHead
-        title={editing ? `Edit ${code} v${v}` : fromCode ? `New version of ${fromCode}` : 'New bank rule'}
-        sub={<span className="row gap wrap"><FamilyBadge family={family} /><span>{t.icon} {t.name}</span><code>{t.code} v{t.version}</code></span>}
+        title={editing ? `Edit ${code}` : fromCode ? `New version of ${fromCode}` : 'Create rule'}
+        sub={<span className="row gap wrap"><FamilyBadge family={family} /><span>{t.icon} {t.name}</span><code>{t.code}</code></span>}
         actions={<><Button onClick={() => nav(-1)}>Cancel</Button><Button variant="primary" busy={busy} onClick={save} disabled={!doc.code}>Save draft</Button></>}
       />
+      <div className="alert alert-info">Flow: <strong>Save draft</strong> → open the rule → <strong>Publish</strong> → <strong>Test</strong> in the testing app.</div>
       {saveErr && (saveErr.details ? <IssueList issues={saveErr.details} /> : <ErrorBox error={saveErr} />)}
       <div className="grid g-main" style={{ alignItems: 'start' }}>
         <div className="stack">
@@ -178,7 +180,7 @@ export function RuleEditor() {
               </div>
             </Card>
           </>}
-          <Field label="Change note (for the approver)"><input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why this change?" /></Field>
+          <Field label="Change note (optional)"><input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why this change?" /></Field>
         </div>
         <div className="stack" style={{ position: 'sticky', top: 70 }}>
           <Card title="Live check">

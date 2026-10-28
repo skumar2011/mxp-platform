@@ -66,4 +66,4 @@ function Login({ app, onDone }: { app: string; onDone: (u: User, env: string) =>
   );
 }
 
-export interface NavItem { to: string; label: string; icon: string; perm?: string; section?: string }
+export interface NavItem { to: string; label: string; icon: string; perm?: string; section?: string; end?: boolean }

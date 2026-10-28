@@ -11,11 +11,13 @@ export interface CustomerInput {
   customerRef: string;
   displayName: string;
   segment: string;
+  /** ISO 3166-2 India state / UT code (e.g. MH, KA, DL). Used for geo-targeted rules. */
+  stateCode?: string | null;
   timezone?: string;
   kycStatus?: 'FULL' | 'MINIMAL' | 'PENDING';
   dormancyRisk?: boolean;
   attributes?: Record<string, unknown>;
-  accounts?: { accountId?: string; accountRef: string; accountType: string; productFamily: string; productCode?: string; openedOn: string }[];
+  accounts?: { accountId?: string; accountRef: string; accountType: string; productFamily: string; productCode?: string; stateCode?: string | null; openedOn: string }[];
   createdAt?: string;
 }
 
@@ -32,26 +34,33 @@ export class Participation {
     if (!this.db.get('SELECT 1 FROM segment WHERE segment_code = ?', input.segment)) throw new MxpError('UNKNOWN_SEGMENT', `Segment ${input.segment} does not exist.`, 422);
     this.db.tx(() => {
       this.db.run(
-        'INSERT INTO customer(customer_id, customer_ref, display_name, segment_code, kyc_status, timezone, dormancy_risk, attributes_json, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
-        id, input.customerRef, input.displayName, input.segment, input.kycStatus ?? 'FULL', input.timezone ?? 'Asia/Kolkata', input.dormancyRisk ? 1 : 0, JSON.stringify(input.attributes ?? {}), at, at,
+        'INSERT INTO customer(customer_id, customer_ref, display_name, segment_code, state_code, kyc_status, timezone, dormancy_risk, attributes_json, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+        id, input.customerRef, input.displayName, input.segment, input.stateCode ?? null, input.kycStatus ?? 'FULL', input.timezone ?? 'Asia/Kolkata', input.dormancyRisk ? 1 : 0, JSON.stringify(input.attributes ?? {}), at, at,
       );
-      for (const a of input.accounts ?? [])
+      for (const a of input.accounts ?? []) {
+        const accountId = a.accountId ?? uid();
         this.db.run(
-          'INSERT INTO account(account_id, customer_id, account_ref, account_type, product_family, product_code, opened_on, created_at) VALUES (?,?,?,?,?,?,?,?)',
-          a.accountId ?? uid(), id, a.accountRef, a.accountType, a.productFamily, a.productCode ?? null, a.openedOn, at,
+          'INSERT INTO account(account_id, customer_id, account_ref, account_type, product_family, product_code, state_code, opened_on, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+          accountId, id, a.accountRef, a.accountType, a.productFamily, a.productCode ?? null, a.stateCode ?? input.stateCode ?? null, a.openedOn, at,
         );
-      this.db.run('INSERT INTO points_account(customer_id, balance, lifetime_earned, lifetime_clawed, updated_at) VALUES (?,0,0,0,?)', id, at);
-      audit(this.db, this.clock, actor, 'CUSTOMER_CREATE', 'customer', id, { segment: input.segment });
+        this.db.run('INSERT INTO points_account(account_id, customer_id, balance, lifetime_earned, lifetime_clawed, updated_at) VALUES (?,?,0,0,0,?)', accountId, id, at);
+      }
+      audit(this.db, this.clock, actor, 'CUSTOMER_CREATE', 'customer', id, { segment: input.segment, stateCode: input.stateCode });
     });
     return id;
   }
 
-  updateCustomer(id: string, patch: { segment?: string; timezone?: string; dormancyRisk?: boolean; attributes?: Record<string, unknown> }, actor: Actor) {
+  updateCustomer(id: string, patch: { segment?: string; stateCode?: string | null; timezone?: string; dormancyRisk?: boolean; attributes?: Record<string, unknown> }, actor: Actor) {
     const c = this.customerRow(id);
     this.db.run(
-      'UPDATE customer SET segment_code = ?, timezone = ?, dormancy_risk = ?, attributes_json = ?, updated_at = ? WHERE customer_id = ?',
-      patch.segment ?? c.segment_code, patch.timezone ?? c.timezone, patch.dormancyRisk === undefined ? c.dormancy_risk : patch.dormancyRisk ? 1 : 0,
-      patch.attributes ? JSON.stringify(patch.attributes) : c.attributes_json, this.now(), id,
+      'UPDATE customer SET segment_code = ?, state_code = ?, timezone = ?, dormancy_risk = ?, attributes_json = ?, updated_at = ? WHERE customer_id = ?',
+      patch.segment ?? c.segment_code,
+      patch.stateCode !== undefined ? patch.stateCode : c.state_code,
+      patch.timezone ?? c.timezone,
+      patch.dormancyRisk === undefined ? c.dormancy_risk : patch.dormancyRisk ? 1 : 0,
+      patch.attributes ? JSON.stringify(patch.attributes) : c.attributes_json,
+      this.now(),
+      id,
     );
     audit(this.db, this.clock, actor, 'CUSTOMER_UPDATE', 'customer', id, patch);
   }
@@ -77,6 +86,7 @@ export class Participation {
         ...parseJson<Record<string, unknown>>(c.attributes_json, {}),
         id: c.customer_id,
         segment: c.segment_code,
+        state: c.state_code,
         timezone: c.timezone,
         status: c.status,
         kyc_status: c.kyc_status,
@@ -85,7 +95,11 @@ export class Participation {
         days_since_last_txn: lastTxn ? Math.max(0, daysBetween(lastTxn.slice(0, 10), day)) : 9999,
         products: [...new Set(accounts.filter((a) => a.status === 'ACTIVE').map((a) => a.product_family))],
       },
-      account: acct ? { id: acct.account_id, type: acct.account_type, status: acct.status, product_family: acct.product_family } : opts.accountId ? { id: opts.accountId } : null,
+      account: acct
+        ? { id: acct.account_id, type: acct.account_type, status: acct.status, product_family: acct.product_family, state: acct.state_code }
+        : opts.accountId
+          ? { id: opts.accountId }
+          : null,
       settings: this.settingsFor(c.customer_id, day),
       enrollments: this.db
         .all<{ rule_code: string }>("SELECT rule_code FROM mission_enrollment WHERE customer_id = ? AND status = 'ENROLLED'", c.customer_id)

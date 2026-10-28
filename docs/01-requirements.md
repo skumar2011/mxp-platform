@@ -1,14 +1,15 @@
 # 1. Requirements
 
-Money XP (MXP) rewards banking customers with points for good money habits. Version 2 splits the rules into two families that differ in **who sets the target**.
+Money XP (MXP) rewards banking customers with points for good money habits. Rules split into two families that differ in **who sets the target**. Runtime is **account-centric** and fed daily from the bank DWH.
 
-| | Bank-defined mission | Spend control |
+| | Bank-defined mission | Customer setting (spend control) |
 |---|---|---|
 | Who writes the rule | Bank | Bank |
 | Who sets the target value | Bank (e.g. "10 UPI payments a month") | **Customer** (e.g. "my daily limit is ₹2,000"), inside bounds the bank sets |
 | What earns points | Reaching the target (or each qualifying item) | Staying within the customer's own limit for a window |
-| Real-time effect | None (progress, nudges) | Pre-authorisation decision: ALLOW, WARN, ALERT or BLOCK |
-| Customer action needed | None for AUTO missions; opt-in for OPT_IN missions | The customer turns the control on and picks the value |
+| Real-time effect | None (progress, nudges) | Optional pre-authorisation: ALLOW, WARN, ALERT or BLOCK |
+| Customer action needed | Select / enroll (OPT_IN) or AUTO | Customer turns the control on and sets the value |
+| Scope | Segment, **state (geo)**, **CASA / credit card**, effective dates | Same |
 
 Reference: [MXP capability overview](https://mxpcapability.netlify.app): six spend controls, six missions, three extensions, "configuration not development", segment personalisation.
 
@@ -68,6 +69,9 @@ YOUTH and SENIOR segments exist to show that a new segment is a row plus rule ta
 
 ## 1.5 Assumptions
 
-- Upstream systems send normalised events (transaction, balance snapshot, referral, product application, RD installment/maturity, FD maturity). Field names are listed in the fact model.
-- Points redemption, notifications delivery and customer-facing apps are out of scope; MXP produces nudges and ledger entries for them.
-- SQLite is used for the demo; the schema maps 1:1 to PostgreSQL (see [03-data-model.md](03-data-model.md)).
+- The bank **data warehouse** is the system of record for multi-channel transactions; MXP loads them **daily** (`POST /api/ops/dwh/sync`). Ad-hoc `/events` remains for lab/demo.
+- Every event is tied to an **account**; points accumulate on that account (customer total = sum of accounts).
+- Rules may target **geography** (`states`), **product scope** (`CASA` / `CREDIT_CARD` / `ANY`), and an **effective date range**.
+- Customers are nudged for **overall performance** (monthly points) as well as per-rule tips.
+- Points redemption, notification delivery and customer-facing apps are out of scope; MXP produces nudges and ledger entries for them.
+- SQLite is used for the demo; the schema maps 1:1 to PostgreSQL (see [03-data-model.md](03-data-model.md)). Schema version **5**.

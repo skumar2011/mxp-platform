@@ -5,7 +5,7 @@ import { day } from '../../shared/format';
 import { useAsync, useDebounced } from '../../shared/hooks';
 import { PageHead } from '../../shared/Layout';
 import { FamilyBadge } from '../../shared/rules-ui';
-import { Badge, Button, Card, DataTable, ErrorBox, Field, Filters, Loading, StatusBadge } from '../../shared/ui';
+import { Button, Card, DataTable, ErrorBox, Field, Filters, Loading, StatusBadge } from '../../shared/ui';
 
 export function Rules() {
   const nav = useNavigate();
@@ -13,31 +13,68 @@ export function Rules() {
   const [sp, setSp] = useSearchParams();
   const family = sp.get('family') ?? '';
   const status = sp.get('status') ?? '';
+  const schedule = sp.get('schedule') ?? '';
   const q = useDebounced(sp.get('q') ?? '');
   const set = (k: string, v: string) => { const n = new URLSearchParams(sp); if (v) n.set(k, v); else n.delete(k); setSp(n, { replace: true }); };
-  const { data, error, reload } = useAsync(() => api<any[]>('/rules', { query: { family, status, q } }), [family, status, q]);
+  const { data, error, reload } = useAsync(() => api<any[]>('/rules', { query: { family, status, schedule, q } }), [family, status, schedule, q]);
+  const drafts = (data ?? []).filter((r) => r.latestStatus === 'DRAFT').length;
+
   return (
     <div>
-      <PageHead title="Bank rules" sub="Configured instances of catalogue templates: values, customer limits, segments and eligibility. Every change is versioned and approved."
-        actions={can('rules:write') && <Button variant="primary" onClick={() => nav('/rules/new')}>New rule</Button>} />
+      <PageHead
+        title="Rules"
+        sub="Missions (bank targets) and spend controls (customer values). Create a draft, publish it live, then test."
+        actions={<>
+          {can('rules:write') && <Button variant="primary" onClick={() => nav('/rules/new')}>Create rule</Button>}
+          <a className="btn" href="/testing/">Test rules ↗</a>
+        </>}
+      />
+
+      {drafts > 0 && (
+        <div className="alert alert-warn">
+          {drafts} draft{drafts === 1 ? '' : 's'} waiting to publish. Open a draft and click <strong>Publish</strong> to put it in the live pack.
+        </div>
+      )}
+
+      <div className="pill" style={{ marginBottom: 14 }}>
+        <button type="button" className={!family ? 'on' : ''} onClick={() => set('family', '')}>All</button>
+        <button type="button" className={family === 'MISSION' ? 'on' : ''} onClick={() => set('family', 'MISSION')}>Missions</button>
+        <button type="button" className={family === 'SPEND_CONTROL' ? 'on' : ''} onClick={() => set('family', 'SPEND_CONTROL')}>Spend controls</button>
+      </div>
+
       <Filters>
-        <Field label="Family"><select className="input" value={family} onChange={(e) => set('family', e.target.value)}><option value="">All</option><option value="SPEND_CONTROL">Spend controls</option><option value="MISSION">Missions</option></select></Field>
-        <Field label="Status"><select className="input" value={status} onChange={(e) => set('status', e.target.value)}><option value="">All</option>{['ACTIVE', 'PAUSED', 'DRAFT', 'RETIRED'].map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ').toLowerCase()}</option>)}</select></Field>
+        <Field label="Lifecycle">
+          <select className="input" value={status} onChange={(e) => set('status', e.target.value)}>
+            <option value="">All</option>
+            {['ACTIVE', 'PAUSED', 'DRAFT', 'RETIRED'].map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ').toLowerCase()}</option>)}
+          </select>
+        </Field>
+        <Field label="Schedule">
+          <select className="input" value={schedule} onChange={(e) => set('schedule', e.target.value)}>
+            <option value="">All</option>
+            {['RUNNING', 'EXPIRED', 'PAUSED', 'SCHEDULED', 'DRAFT', 'RETIRED'].map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ').toLowerCase()}</option>)}
+          </select>
+        </Field>
         <Field label="Search"><input className="input" value={sp.get('q') ?? ''} onChange={(e) => set('q', e.target.value)} placeholder="Code or name" /></Field>
       </Filters>
+
       {error && <ErrorBox error={error} retry={reload} />}
       {!data ? <Loading /> : (
         <Card pad={false}>
-          <DataTable rows={data} onRow={(r) => nav(`/rules/${r.code}`)} rowKey={(r) => r.code} cols={[
-            { key: 'n', header: 'Rule', render: (r) => <><strong>{r.name}</strong> {r.featured && <Badge tone="amber">featured</Badge>}<br /><code>{r.code}</code></> },
-            { key: 'f', header: 'Family', render: (r) => <FamilyBadge family={r.family} /> },
-            { key: 't', header: 'Template', render: (r) => <code>{r.template}</code> },
-            { key: 's', header: 'Segments', render: (r) => (r.segments.length ? r.segments.join(', ') : <span className="muted">All</span>) },
-            { key: 'live', header: 'Live', render: (r) => (r.liveVersion ? <><StatusBadge status={r.liveStatus} /> v{r.liveVersion}</> : <span className="muted">-</span>) },
-            { key: 'latest', header: 'Latest', render: (r) => (r.latestVersion !== r.liveVersion ? <><StatusBadge status={r.latestStatus} /> v{r.latestVersion}</> : <span className="muted">same</span>) },
-            { key: 'sum', header: 'What it does', render: (r) => <span className="muted">{r.summary}</span> },
-            { key: 'u', header: 'Updated', render: (r) => day(r.updatedAt) },
-          ]} />
+          <DataTable
+            rows={data}
+            empty="No rules match. Create a mission or spend control to get started."
+            onRow={(r) => nav(`/rules/${r.code}`)}
+            rowKey={(r) => r.code}
+            cols={[
+              { key: 'n', header: 'Rule', render: (r) => <><strong>{r.name}</strong><br /><code>{r.code}</code></> },
+              { key: 'f', header: 'Type', render: (r) => <FamilyBadge family={r.family} /> },
+              { key: 'sched', header: 'Status', render: (r) => <StatusBadge status={r.scheduleStatus} /> },
+              { key: 'dates', header: 'Effective', render: (r) => <span className="muted">{r.effectiveFrom ?? '…'} → {r.effectiveTo ?? 'open'}</span> },
+              { key: 'sum', header: 'What it does', render: (r) => <span className="muted">{r.summary}</span> },
+              { key: 'u', header: 'Updated', render: (r) => day(r.updatedAt) },
+            ]}
+          />
         </Card>
       )}
     </div>

@@ -88,18 +88,18 @@ export function seed(mx: Mxp, opts: SeedOptions = {}) {
   const start = addDays(today, -days);
   const created = addDays(start, -400);
   const P = mx.participation;
-  const persona = (id: string, name: string, segment: string, tz: string, accounts: [string, string, string][], extra: { dormancyRisk?: boolean; attributes?: Record<string, unknown> } = {}) =>
+  const persona = (id: string, name: string, segment: string, tz: string, state: string, accounts: [string, string, string][], extra: { dormancyRisk?: boolean; attributes?: Record<string, unknown> } = {}) =>
     P.createCustomer({
-      customerId: id, customerRef: `CIF-${id.slice(1)}`, displayName: name, segment, timezone: tz, dormancyRisk: extra.dormancyRisk, attributes: extra.attributes, createdAt: `${created}T04:00:00.000Z`,
-      accounts: accounts.map(([suffix, type, family]) => ({ accountId: `${id}-${suffix}`, accountRef: `XX${id.slice(1)}${suffix}`, accountType: type, productFamily: family, openedOn: created })),
+      customerId: id, customerRef: `CIF-${id.slice(1)}`, displayName: name, segment, stateCode: state, timezone: tz, dormancyRisk: extra.dormancyRisk, attributes: extra.attributes, createdAt: `${created}T04:00:00.000Z`,
+      accounts: accounts.map(([suffix, type, family]) => ({ accountId: `${id}-${suffix}`, accountRef: `XX${id.slice(1)}${suffix}`, accountType: type, productFamily: family, stateCode: state, openedOn: created })),
     }, system);
 
-  persona('C1001', 'Anita R.', 'MASS', IST, [['SA', 'SAVINGS', 'SAVINGS'], ['RD', 'RECURRING_DEPOSIT', 'RECURRING_DEPOSIT'], ['DC', 'SAVINGS', 'DEBIT_CARD']]);
-  persona('C1002', 'Vikram S.', 'AFFLUENT', IST, [['SA', 'SAVINGS', 'SAVINGS'], ['RD', 'RECURRING_DEPOSIT', 'RECURRING_DEPOSIT'], ['FD', 'FIXED_DEPOSIT', 'FIXED_DEPOSIT'], ['CC', 'CREDIT_CARD', 'CREDIT_CARD']]);
-  persona('C1003', 'Riya K.', 'YOUTH', IST, [['SA', 'SAVINGS', 'SAVINGS'], ['DC', 'SAVINGS', 'DEBIT_CARD']]);
-  persona('C1004', 'David M.', 'AFFLUENT', 'America/New_York', [['SA', 'SAVINGS', 'SAVINGS'], ['CC', 'CREDIT_CARD', 'CREDIT_CARD']], { attributes: { home_country: 'US' } });
-  persona('C1005', 'Suresh P.', 'MASS', IST, [['SA', 'SAVINGS', 'SAVINGS']], { dormancyRisk: true });
-  persona('C1006', 'Meera N.', 'SENIOR', IST, [['SA', 'SAVINGS', 'SAVINGS'], ['RD', 'RECURRING_DEPOSIT', 'RECURRING_DEPOSIT']]);
+  persona('C1001', 'Anita R.', 'MASS', IST, 'MH', [['SA', 'SAVINGS', 'SAVINGS'], ['RD', 'RECURRING_DEPOSIT', 'RECURRING_DEPOSIT'], ['DC', 'SAVINGS', 'DEBIT_CARD']]);
+  persona('C1002', 'Vikram S.', 'AFFLUENT', IST, 'KA', [['SA', 'SAVINGS', 'SAVINGS'], ['RD', 'RECURRING_DEPOSIT', 'RECURRING_DEPOSIT'], ['FD', 'FIXED_DEPOSIT', 'FIXED_DEPOSIT'], ['CC', 'CREDIT_CARD', 'CREDIT_CARD']]);
+  persona('C1003', 'Riya K.', 'YOUTH', IST, 'MH', [['SA', 'SAVINGS', 'SAVINGS'], ['DC', 'SAVINGS', 'DEBIT_CARD']]);
+  persona('C1004', 'David M.', 'AFFLUENT', 'America/New_York', 'DL', [['SA', 'SAVINGS', 'SAVINGS'], ['CC', 'CREDIT_CARD', 'CREDIT_CARD']], { attributes: { home_country: 'US' } });
+  persona('C1005', 'Suresh P.', 'MASS', IST, 'TN', [['SA', 'SAVINGS', 'SAVINGS']], { dormancyRisk: true });
+  persona('C1006', 'Meera N.', 'SENIOR', IST, 'GJ', [['SA', 'SAVINGS', 'SAVINGS'], ['RD', 'RECURRING_DEPOSIT', 'RECURRING_DEPOSIT']]);
   log('6 customers');
 
   // ---- customer-set spend controls (backdated to the start of the history) ----
@@ -119,11 +119,11 @@ export function seed(mx: Mxp, opts: SeedOptions = {}) {
   P.enroll('C1003', 'DIVERSITY_STD', system, 'SEED');
 
   // ---- event history ----
-  const events: EventInput[] = [];
+  const events: Array<EventInput & { customerId: string }> = [];
   const n: Record<string, number> = {};
   const add = (c: string, date: string, hhmm: string, tz: string, attrs: Record<string, unknown>) => {
     n[c] = (n[c] ?? 0) + 1;
-    const e = { sourceSystem: 'CORE', sourceEventId: `${c}-${String(n[c]).padStart(4, '0')}`, customerId: c, timestamp: zonedToIso(date, hhmm, tz), ...attrs } as EventInput;
+    const e = { sourceSystem: 'CORE', sourceEventId: `${c}-${String(n[c]).padStart(4, '0')}`, customerId: c, accountId: `${c}-SA`, timestamp: zonedToIso(date, hhmm, tz), ...attrs } as EventInput & { customerId: string };
     events.push(e);
     return e.sourceEventId!;
   };
@@ -161,9 +161,9 @@ export function seed(mx: Mxp, opts: SeedOptions = {}) {
     bal('C1002', d, amt(550000, 900000, 1000));
     if (dom === 10) add('C1002', d, '09:00', IST, { type: 'RD_INSTALLMENT', accountId: 'C1002-RD', account_type: 'RECURRING_DEPOSIT', installment_no: 4, on_time: true, amount: 25000 });
     if (i === 12) add('C1002', d, '10:00', IST, { type: 'FD_MATURITY', accountId: 'C1002-FD', account_type: 'FIXED_DEPOSIT', action: 'RENEW', amount: 500000, maturity_id: 'MAT-2026-0042', tenure_months: 12 });
-    if (i === 4) add('C1002', d, '15:00', IST, { type: 'REFERRAL', referral_id: 'REF-7781', status: 'SUBMITTED', referee_ref: 'masked' });
-    if (i === 8) add('C1002', d, '15:00', IST, { type: 'REFERRAL', referral_id: 'REF-7781', status: 'APPROVED', referee_ref: 'masked' });
-    if (i === 6) add('C1002', d, '12:00', IST, { type: 'PRODUCT_APPLICATION', application_id: 'APP-5521', product_family: 'INSURANCE', status: 'APPROVED' });
+    if (i === 4) add('C1002', d, '15:00', IST, { type: 'REFERRAL', accountId: 'C1002-SA', referral_id: 'REF-7781', status: 'SUBMITTED', referee_ref: 'masked' });
+    if (i === 8) add('C1002', d, '15:00', IST, { type: 'REFERRAL', accountId: 'C1002-SA', referral_id: 'REF-7781', status: 'APPROVED', referee_ref: 'masked' });
+    if (i === 6) add('C1002', d, '12:00', IST, { type: 'PRODUCT_APPLICATION', accountId: 'C1002-SA', application_id: 'APP-5521', product_family: 'INSURANCE', status: 'APPROVED' });
 
     // Riya: lots of small UPI payments (the UPI mission caps 3 per day), one blocked ATM withdrawal.
     for (let k = 0; k < 2 + (i % 3); k++) txn('C1003', d, `${9 + k * 2}:${pick(['10', '35', '50'])}`, amt(60, 380), { category: pick(['FOOD_GROCERY', 'DINING', 'ENTERTAINMENT']), payee_id: `P${k}` });
@@ -184,12 +184,17 @@ export function seed(mx: Mxp, opts: SeedOptions = {}) {
     if (i % 2 === 1) txn('C1006', d, '11:30', amt(800, 3500, 50), { channel: 'CARD_POS', category: pick(['FOOD_GROCERY', 'HEALTH', 'UTILITIES']), product_family: 'DEBIT_CARD' });
     bal('C1006', d, amt(80000, 120000, 1000));
     if (i === 10) add('C1006', d, '10:00', IST, { type: 'RD_MATURITY', accountId: 'C1006-RD', account_type: 'RECURRING_DEPOSIT', status: 'COMPLETED', installments_missed: 0, tenure_months: 12 });
-    if (i === 3) add('C1006', d, '16:00', IST, { type: 'REFERRAL', referral_id: 'REF-9910', status: 'APPROVED' });
+    if (i === 3) add('C1006', d, '16:00', IST, { type: 'REFERRAL', accountId: 'C1006-SA', referral_id: 'REF-9910', status: 'APPROVED' });
+  }
+
+  // Ensure every event has an account (account-centric model).
+  for (const e of events) {
+    if (!e.accountId) e.accountId = `${e.customerId}-SA`;
   }
 
   events.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
   let failed = 0;
-  for (const e of events) if (mx.runtime.ingest(e, system).status === 'FAILED') failed++;
+  for (const e of events) if (mx.runtime.ingest(e as EventInput, system).status === 'FAILED') failed++;
   log(`${events.length} events processed${failed ? ` (${failed} failed)` : ''}`);
 
   const closed = mx.runtime.closeWindows(ops);
@@ -200,13 +205,17 @@ export function seed(mx: Mxp, opts: SeedOptions = {}) {
 
   // Real-time checks as a card switch would make them.
   const at = new Date(mx.clock.now().getTime() - 3600_000).toISOString();
-  mx.runtime.check({ customerId: 'C1002', type: 'TRANSACTION', timestamp: at, amount: 1500, dr_cr: 'D', channel: 'CARD_ONLINE', txn_type: 'PURCHASE', category: 'GAMBLING', merchant_id: 'M_DREAM11', product_family: 'CREDIT_CARD', requestId: 'AUTH-1001' });
-  mx.runtime.check({ customerId: 'C1003', type: 'TRANSACTION', timestamp: at, amount: 1000, dr_cr: 'D', channel: 'ATM', txn_type: 'ATM_WITHDRAWAL', category: 'OTHER', product_family: 'DEBIT_CARD', requestId: 'AUTH-1002' });
-  mx.runtime.check({ customerId: 'C1001', type: 'TRANSACTION', timestamp: at, amount: 600, dr_cr: 'D', channel: 'UPI', txn_type: 'PURCHASE', category: 'FOOD_GROCERY', product_family: 'SAVINGS', requestId: 'AUTH-1003' });
+  mx.runtime.check({ customerId: 'C1002', accountId: 'C1002-CC', type: 'TRANSACTION', timestamp: at, amount: 1500, dr_cr: 'D', channel: 'CARD_ONLINE', txn_type: 'PURCHASE', category: 'GAMBLING', merchant_id: 'M_DREAM11', product_family: 'CREDIT_CARD', requestId: 'AUTH-1001' });
+  mx.runtime.check({ customerId: 'C1003', accountId: 'C1003-DC', type: 'TRANSACTION', timestamp: at, amount: 1000, dr_cr: 'D', channel: 'ATM', txn_type: 'ATM_WITHDRAWAL', category: 'OTHER', product_family: 'DEBIT_CARD', requestId: 'AUTH-1002' });
+  mx.runtime.check({ customerId: 'C1001', accountId: 'C1001-SA', type: 'TRANSACTION', timestamp: at, amount: 600, dr_cr: 'D', channel: 'UPI', txn_type: 'PURCHASE', category: 'FOOD_GROCERY', product_family: 'SAVINGS', requestId: 'AUTH-1003' });
+
+  // Overall performance nudges (portfolio-level, not per-rule).
+  const perf = mx.runtime.generatePerformanceNudges(ops);
+  log(`${perf.length} performance nudges`);
 
   for (const sc of SEED_SCENARIOS) mx.tests.save(sc, qa);
   log(`${SEED_SCENARIOS.length} test scenarios`);
-  return { events: events.length, failed, closed: closed.closed };
+  return { events: events.length, failed, closed: closed.closed, performanceNudges: perf.length };
 }
 
 // ---------------------------------------------------------------------------
@@ -215,14 +224,16 @@ export function seed(mx: Mxp, opts: SeedOptions = {}) {
 // ---------------------------------------------------------------------------
 const at = (date: string, hhmm: string, tz = IST) => zonedToIso(date, hhmm, tz);
 const T = (o: Record<string, unknown>) => ({ type: 'TRANSACTION', dr_cr: 'D', channel: 'UPI', txn_type: 'PURCHASE', category: 'FOOD_GROCERY', product_family: 'SAVINGS', ...o }) as unknown as { type: string; timestamp: string };
-const mass = { id: 'T_MASS', segment: 'MASS', timezone: IST, dormancy_risk: false, status: 'ACTIVE' };
-const affluent = { id: 'T_AFF', segment: 'AFFLUENT', timezone: IST, dormancy_risk: false, status: 'ACTIVE' };
+const mass = { id: 'T_MASS', segment: 'MASS', state: 'MH', timezone: IST, dormancy_risk: false, status: 'ACTIVE', products: ['SAVINGS', 'DEBIT_CARD'] };
+const affluent = { id: 'T_AFF', segment: 'AFFLUENT', state: 'KA', timezone: IST, dormancy_risk: false, status: 'ACTIVE', products: ['SAVINGS', 'CREDIT_CARD'] };
+const massAcct = { id: 'A_MASS', product_family: 'SAVINGS', type: 'SAVINGS', status: 'ACTIVE' };
+const affAcct = { id: 'A_AFF', product_family: 'CREDIT_CARD', type: 'CREDIT_CARD', status: 'ACTIVE' };
 const setting = (ruleCode: string, values: Record<string, unknown>, customerId: string) => ({ settingId: `S_${ruleCode}`, customerId, ruleCode, values, effectiveFrom: '2026-01-01' });
 
 export const SEED_SCENARIOS: Scenario[] = [
   {
     id: 'sc-dsl-breach', name: 'Daily limit: warn at 80%, alert on breach, no reward', focusRule: 'DSL_MASS', tags: ['spend-control', 'daily'],
-    customer: mass, settings: [setting('DSL_MASS', { limit: 3000 }, 'T_MASS')],
+    customer: mass, account: massAcct, settings: [setting('DSL_MASS', { limit: 3000 }, 'T_MASS')],
     steps: [
       { kind: 'event', label: '₹1,000 grocery', event: T({ amount: 1000, timestamp: at('2026-10-05', '10:00') }), expect: { outcomes: { DSL_MASS: 'WITHIN_LIMIT' }, decision: 'ALLOW' } },
       { kind: 'event', label: '₹1,500 more (83%)', event: T({ amount: 1500, timestamp: at('2026-10-05', '12:00') }), expect: { outcomes: { DSL_MASS: 'WARNING' }, decision: 'WARN' } },
@@ -234,7 +245,7 @@ export const SEED_SCENARIOS: Scenario[] = [
   },
   {
     id: 'sc-dsl-compliant', name: 'Daily limit: a compliant day earns points', focusRule: 'DSL_MASS', tags: ['spend-control', 'daily'],
-    customer: mass, settings: [setting('DSL_MASS', { limit: 3000 }, 'T_MASS')],
+    customer: mass, account: massAcct, settings: [setting('DSL_MASS', { limit: 3000 }, 'T_MASS')],
     steps: [
       { kind: 'event', event: T({ amount: 1200, timestamp: at('2026-10-05', '10:00') }), expect: { outcomes: { DSL_MASS: 'WITHIN_LIMIT' } } },
       { kind: 'close', asOf: '2026-10-06', expect: { outcomes: { DSL_MASS: 'COMPLIANT' }, points: 10 } },
@@ -243,7 +254,7 @@ export const SEED_SCENARIOS: Scenario[] = [
   },
   {
     id: 'sc-dsl-inactive', name: 'Daily limit: no spend means no reward (anti-gaming)', focusRule: 'DSL_MASS', tags: ['spend-control', 'anti-gaming'],
-    customer: mass, settings: [setting('DSL_MASS', { limit: 3000 }, 'T_MASS')],
+    customer: mass, account: massAcct, settings: [setting('DSL_MASS', { limit: 3000 }, 'T_MASS')],
     steps: [
       { kind: 'event', label: 'ATM withdrawal is out of scope', event: T({ amount: 500, channel: 'ATM', txn_type: 'ATM_WITHDRAWAL', timestamp: at('2026-10-05', '10:00') }) },
       { kind: 'close', asOf: '2026-10-06', expect: { points: 0 } },
@@ -252,7 +263,7 @@ export const SEED_SCENARIOS: Scenario[] = [
   },
   {
     id: 'sc-dsl-refund', name: 'Daily limit: a refund does not undo a breach', focusRule: 'DSL_MASS', tags: ['spend-control', 'reversal'],
-    customer: mass, settings: [setting('DSL_MASS', { limit: 3000 }, 'T_MASS')],
+    customer: mass, account: massAcct, settings: [setting('DSL_MASS', { limit: 3000 }, 'T_MASS')],
     steps: [
       { kind: 'event', event: T({ amount: 2000, timestamp: at('2026-10-05', '10:00') }) },
       { kind: 'event', label: 'Breach', event: { ...T({ amount: 1500, timestamp: at('2026-10-05', '11:00') }), id: 'sc-dsl-refund-big' }, expect: { outcomes: { DSL_MASS: 'BREACH' } } },
@@ -263,7 +274,7 @@ export const SEED_SCENARIOS: Scenario[] = [
   },
   {
     id: 'sc-merchant-block', name: 'Merchant restriction: blocked merchant is declined', focusRule: 'MERCHANT_BLOCK_STD', tags: ['spend-control', 'block'],
-    customer: affluent, settings: [setting('MERCHANT_BLOCK_STD', { merchants: ['M_BETWAY'] }, 'T_AFF')],
+    customer: affluent, account: affAcct, settings: [setting('MERCHANT_BLOCK_STD', { merchants: ['M_BETWAY'] }, 'T_AFF')],
     steps: [
       { kind: 'check', label: 'Betway pre-auth', event: T({ amount: 500, merchant_id: 'M_BETWAY', category: 'GAMBLING', timestamp: at('2026-10-05', '22:00') }), expect: { decision: 'BLOCK' } },
       { kind: 'check', label: 'Amazon pre-auth', event: T({ amount: 500, merchant_id: 'M_AMAZON', category: 'SHOPPING', timestamp: at('2026-10-05', '22:05') }), expect: { decision: 'ALLOW' } },
@@ -279,7 +290,7 @@ export const SEED_SCENARIOS: Scenario[] = [
   },
   {
     id: 'sc-upi-cap', name: 'UPI mission: 3 per day count, small payments ignored', focusRule: 'UPI_STREAK_MASS', tags: ['mission', 'anti-gaming'],
-    customer: mass,
+    customer: mass, account: massAcct,
     steps: [
       ...[0, 1, 2, 3].map((k) => ({ kind: 'event' as const, label: `Day 1 payment ${k + 1}`, event: T({ amount: 100, timestamp: at('2026-10-05', `1${k}:00`) }) })),
       { kind: 'event', label: '₹40 is below the minimum', event: T({ amount: 40, timestamp: at('2026-10-05', '15:00') }), expect: { outcomes: { UPI_STREAK_MASS: 'NOT_MATCHED' } } },
@@ -291,7 +302,7 @@ export const SEED_SCENARIOS: Scenario[] = [
   },
   {
     id: 'sc-referral', name: 'Referral: points only on approval, once per referral', focusRule: 'REFERRAL_STD', tags: ['mission'],
-    customer: mass,
+    customer: mass, account: massAcct,
     steps: [
       { kind: 'event', label: 'Submitted', event: { type: 'REFERRAL', referral_id: 'R1', status: 'SUBMITTED', timestamp: at('2026-10-05', '10:00') }, expect: { points: 0 } },
       { kind: 'event', label: 'Approved', event: { type: 'REFERRAL', referral_id: 'R1', status: 'APPROVED', timestamp: at('2026-10-06', '10:00') }, expect: { points: 500 } },
@@ -301,7 +312,7 @@ export const SEED_SCENARIOS: Scenario[] = [
   },
   {
     id: 'sc-rd-streak', name: 'RD streak: milestone at 3 months, broken by a late payment', focusRule: 'RD_STREAK_MASS', tags: ['mission', 'streak'],
-    customer: mass,
+    customer: mass, account: massAcct,
     steps: [
       { kind: 'event', event: { type: 'RD_INSTALLMENT', on_time: true, amount: 2000, timestamp: at('2026-07-05', '09:00') } },
       { kind: 'event', event: { type: 'RD_INSTALLMENT', on_time: true, amount: 2000, timestamp: at('2026-08-05', '09:00') } },
@@ -312,7 +323,7 @@ export const SEED_SCENARIOS: Scenario[] = [
   },
   {
     id: 'sc-amb-days', name: 'Balance mission: 20 days above ₹10,000 in the month', focusRule: 'AMB_DAYS_MASS', tags: ['mission', 'balance'],
-    customer: mass, account: { id: 'T_MASS-SA', type: 'SAVINGS' },
+    customer: mass, account: { id: 'T_MASS-SA', type: 'SAVINGS', product_family: 'SAVINGS', status: 'ACTIVE' },
     steps: Array.from({ length: 20 }, (_, i) => {
       const d = `2026-10-${String(i + 1).padStart(2, '0')}`;
       return { kind: 'event' as const, label: i === 19 ? '20th qualifying day' : undefined, event: { type: 'BALANCE_SNAPSHOT', accountId: 'T_MASS-SA', account_type: 'SAVINGS', balance: 12000, as_of_date: d, timestamp: at(d, '23:55') }, expect: i === 19 ? { points: 200 } : undefined };

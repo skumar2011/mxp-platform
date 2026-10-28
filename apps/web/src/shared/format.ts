@@ -18,8 +18,9 @@ export const pretty = (s: string) => s.toLowerCase().replace(/_/g, ' ').replace(
 export const familyLabel = (f: string) => (f === 'SPEND_CONTROL' ? 'Spend control' : 'Mission');
 
 export const STATUS_TONE: Record<string, string> = {
-  // rule lifecycle
+  // rule lifecycle + schedule
   ACTIVE: 'green', APPROVED: 'blue', PENDING_APPROVAL: 'amber', DRAFT: 'gray', PAUSED: 'amber', REJECTED: 'red', RETIRED: 'gray', SUPERSEDED: 'gray', CANCELLED: 'gray',
+  RUNNING: 'green', SCHEDULED: 'blue', EXPIRED: 'amber', ACHIEVED: 'green',
   // engine outcomes
   AWARDED: 'green', GOAL_MET: 'green', COMPLIANT: 'green', WITHIN_LIMIT: 'green', PROGRESS: 'blue', IN_PROGRESS: 'blue', WARNING: 'amber', BREACH: 'red', BREACHED: 'red',
   REVERSED: 'red', STREAK_BROKEN: 'red', CAPPED: 'amber', MISSED: 'gray', NO_ACTIVITY: 'gray', NOT_MATCHED: 'gray', NOT_ELIGIBLE: 'gray', NOT_ENROLLED: 'gray',

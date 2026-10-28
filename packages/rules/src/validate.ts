@@ -88,9 +88,22 @@ function checkResolved(logic: Logic, rule: Rule, path: string): Issue[] {
   return issues;
 }
 
+function checkTargeting(rule: Rule, references: Record<string, string[]>): Issue[] {
+  const issues: Issue[] = [];
+  const states = references.states ?? [];
+  for (const s of rule.states) {
+    if (states.length && !states.includes(s)) issues.push({ severity: 'error', code: 'UNKNOWN_STATE', path: 'states', message: `Unknown state code ${s}.` });
+  }
+  const segs = references.segments ?? [];
+  for (const s of rule.segments) {
+    if (segs.length && !segs.includes(s)) issues.push({ severity: 'error', code: 'UNKNOWN_SEGMENT', path: 'segments', message: `Unknown segment ${s}.` });
+  }
+  return issues;
+}
+
 export function checkRule(rule: Rule, template: RuleTemplate | undefined, references: Record<string, string[]>): Issue[] {
   if (!template) return [{ severity: 'error', code: 'UNKNOWN_TEMPLATE', path: 'template', message: `Template ${rule.template} is not in the pack.` }];
-  const issues = checkRuleParams(rule, template, references);
+  const issues = [...checkTargeting(rule, references), ...checkRuleParams(rule, template, references)];
   if (template.family === 'MISSION' && Object.keys(rule.settingsPolicy ?? {}).length && rule.settingsPolicy.cooldownDays > 0)
     issues.push({ severity: 'warning', code: 'POLICY_UNUSED', path: 'settingsPolicy', message: 'settingsPolicy only applies to spend controls.' });
   if (rule.templateVersion && rule.templateVersion !== template.version)

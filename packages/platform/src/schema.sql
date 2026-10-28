@@ -1,19 +1,10 @@
 -- =====================================================================
--- MXP v3 schema (simplified). SQLite dialect; maps 1:1 to PostgreSQL.
+-- MXP v5 schema (account-centric, DWH-fed).
+--
+-- vs v4: spend_control_breach removed — breaches live in rule_evaluation
+--        (outcome = 'BREACH'; target_value = limit, measure_after = measured).
 --
 -- Templates live as JSON files in @mxp/rules (not in the database).
--- One row per bank rule. No version cascade, pack-release history, or
--- setting-version history. Engine state is one table (rule_state).
---
--- Areas:
---   1. Reference     segment, reference_value, merchant
---   2. Customers     customer, account
---   3. Rules         rule
---   4. Participation customer_setting, mission_enrollment
---   5. Runtime       "transaction", rule_state, control_decision,
---                    rule_evaluation, spend_control_breach,
---                    points_ledger, points_account, nudge
---   6. Governance    test_scenario, test_run, app_user, user_role, audit_log
 -- =====================================================================
 
 -- ---------- 1. Reference data ----------------------------------------
@@ -42,12 +33,13 @@ CREATE TABLE merchant (
   active        INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1))
 );
 
--- ---------- 2. Customers ---------------------------------------------
+-- ---------- 2. Customers / accounts ----------------------------------
 CREATE TABLE customer (
   customer_id     TEXT PRIMARY KEY,
   customer_ref    TEXT NOT NULL UNIQUE,
   display_name    TEXT NOT NULL,
   segment_code    TEXT NOT NULL REFERENCES segment(segment_code),
+  state_code      TEXT,
   status          TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','INACTIVE','BLOCKED','CLOSED')),
   kyc_status      TEXT NOT NULL DEFAULT 'FULL' CHECK (kyc_status IN ('FULL','MINIMAL','PENDING')),
   timezone        TEXT NOT NULL DEFAULT 'Asia/Kolkata',
@@ -57,6 +49,7 @@ CREATE TABLE customer (
   updated_at      TEXT NOT NULL
 );
 CREATE INDEX ix_customer_segment ON customer(segment_code);
+CREATE INDEX ix_customer_state ON customer(state_code);
 
 CREATE TABLE account (
   account_id     TEXT PRIMARY KEY,
@@ -65,16 +58,18 @@ CREATE TABLE account (
   account_type   TEXT NOT NULL,
   product_family TEXT NOT NULL,
   product_code   TEXT,
+  state_code     TEXT,
   status         TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','DORMANT','FROZEN','CLOSED')),
   opened_on      TEXT NOT NULL,
   closed_on      TEXT,
   created_at     TEXT NOT NULL
 );
 CREATE INDEX ix_account_customer ON account(customer_id);
+CREATE INDEX ix_account_product ON account(product_family);
 
--- ---------- 3. Bank rules (one row = one rule file) -------------------
--- Status: DRAFT (editable) | ACTIVE | PAUSED | RETIRED
--- Templates are files in @mxp/rules/catalog; definition_json is the Rule file.
+-- ---------- 3. Bank rules --------------------------------------------
+-- Family: MISSION (select/enroll only) | SPEND_CONTROL (customer setting values → points)
+-- product_scope: ANY | CASA | CREDIT_CARD
 CREATE TABLE rule (
   rule_code       TEXT PRIMARY KEY,
   family          TEXT NOT NULL CHECK (family IN ('MISSION','SPEND_CONTROL')),
@@ -83,6 +78,9 @@ CREATE TABLE rule (
   name            TEXT NOT NULL,
   description     TEXT,
   enrollment_mode TEXT NOT NULL DEFAULT 'AUTO' CHECK (enrollment_mode IN ('AUTO','OPT_IN')),
+  product_scope   TEXT NOT NULL DEFAULT 'ANY' CHECK (product_scope IN ('ANY','CASA','CREDIT_CARD')),
+  effective_from  TEXT,
+  effective_to    TEXT,
   priority        INTEGER NOT NULL DEFAULT 100,
   featured        INTEGER NOT NULL DEFAULT 0 CHECK (featured IN (0,1)),
   definition_json TEXT NOT NULL,
@@ -93,9 +91,9 @@ CREATE TABLE rule (
   updated_at      TEXT NOT NULL
 );
 CREATE INDEX ix_rule_family ON rule(family, status);
+CREATE INDEX ix_rule_dates ON rule(effective_from, effective_to);
 
 -- ---------- 4. Participation -----------------------------------------
--- Spend-control values the customer chose. pending_* holds a scheduled change.
 CREATE TABLE customer_setting (
   setting_id          TEXT PRIMARY KEY,
   customer_id         TEXT NOT NULL REFERENCES customer(customer_id),
@@ -122,14 +120,30 @@ CREATE TABLE mission_enrollment (
   PRIMARY KEY (customer_id, rule_code)
 );
 
--- ---------- 5. Runtime -----------------------------------------------
+-- ---------- 5. DWH batch + runtime -----------------------------------
+CREATE TABLE dwh_batch (
+  batch_id      TEXT PRIMARY KEY,
+  business_date TEXT NOT NULL,
+  source_system TEXT NOT NULL DEFAULT 'DWH',
+  row_count     INTEGER NOT NULL DEFAULT 0,
+  inserted      INTEGER NOT NULL DEFAULT 0,
+  updated       INTEGER NOT NULL DEFAULT 0,
+  skipped       INTEGER NOT NULL DEFAULT 0,
+  failed        INTEGER NOT NULL DEFAULT 0,
+  status        TEXT NOT NULL CHECK (status IN ('RUNNING','COMPLETED','FAILED')),
+  started_at    TEXT NOT NULL,
+  finished_at   TEXT,
+  error_text    TEXT
+);
+CREATE INDEX ix_dwh_batch_date ON dwh_batch(business_date);
+
 CREATE TABLE "transaction" (
   event_id        TEXT PRIMARY KEY,
   source_system   TEXT NOT NULL,
   source_event_id TEXT NOT NULL,
   event_type      TEXT NOT NULL,
   customer_id     TEXT NOT NULL REFERENCES customer(customer_id),
-  account_id      TEXT,
+  account_id      TEXT NOT NULL REFERENCES account(account_id),
   occurred_at     TEXT NOT NULL,
   reversal_of     TEXT,
   payload_json    TEXT NOT NULL,
@@ -139,15 +153,18 @@ CREATE TABLE "transaction" (
   processed_at    TEXT,
   error_text      TEXT,
   pack_hash       TEXT,
+  dwh_batch_id    TEXT REFERENCES dwh_batch(batch_id),
+  source_channel  TEXT,
   UNIQUE (source_system, source_event_id)
 );
+CREATE INDEX ix_transaction_account ON "transaction"(account_id, occurred_at);
 CREATE INDEX ix_transaction_customer ON "transaction"(customer_id, occurred_at);
 CREATE INDEX ix_transaction_type ON "transaction"(event_type, occurred_at);
+CREATE INDEX ix_transaction_batch ON "transaction"(dwh_batch_id);
 
--- Unified engine state (was rule_window_state + rolling + lifetime + event_index).
 CREATE TABLE rule_state (
   state_key   TEXT PRIMARY KEY,
-  prefix      TEXT NOT NULL,              -- w| r| l| x|
+  prefix      TEXT NOT NULL,
   rule_code   TEXT,
   customer_id TEXT,
   window_key  TEXT,
@@ -164,6 +181,7 @@ CREATE TABLE control_decision (
   decision_id  TEXT PRIMARY KEY,
   request_id   TEXT,
   customer_id  TEXT NOT NULL,
+  account_id   TEXT,
   event_type   TEXT NOT NULL,
   amount_minor INTEGER,
   payload_json TEXT NOT NULL,
@@ -182,6 +200,7 @@ CREATE TABLE rule_evaluation (
   rule_version_no INTEGER NOT NULL DEFAULT 1,
   family          TEXT NOT NULL,
   customer_id     TEXT NOT NULL,
+  account_id      TEXT,
   subject_key     TEXT NOT NULL,
   setting_id      TEXT,
   window_key      TEXT,
@@ -197,26 +216,15 @@ CREATE TABLE rule_evaluation (
   evaluated_at    TEXT NOT NULL
 );
 CREATE INDEX ix_eval_customer ON rule_evaluation(customer_id, evaluated_at);
+CREATE INDEX ix_eval_account ON rule_evaluation(account_id, evaluated_at);
 CREATE INDEX ix_eval_rule ON rule_evaluation(rule_code, evaluated_at);
 
-CREATE TABLE spend_control_breach (
-  breach_id      TEXT PRIMARY KEY,
-  evaluation_id  TEXT,
-  customer_id    TEXT NOT NULL,
-  rule_code      TEXT NOT NULL,
-  setting_id     TEXT,
-  window_key     TEXT,
-  event_id       TEXT,
-  limit_value    REAL NOT NULL,
-  measured_value REAL NOT NULL,
-  action         TEXT NOT NULL,
-  occurred_at    TEXT NOT NULL,
-  recorded_at    TEXT NOT NULL
-);
-CREATE INDEX ix_breach_customer ON spend_control_breach(customer_id, occurred_at);
-
+-- Points accumulate at account level; customer_id is denormalized for reporting.
+-- Limit breaches are rule_evaluation rows with outcome = 'BREACH'
+-- (target_value = limit, measure_after = measured, decision = ALERT|BLOCK).
 CREATE TABLE points_ledger (
   ledger_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id      TEXT NOT NULL REFERENCES account(account_id),
   customer_id     TEXT NOT NULL REFERENCES customer(customer_id),
   entry_type      TEXT NOT NULL CHECK (entry_type IN ('AWARD','CLAWBACK','ADJUSTMENT')),
   points          INTEGER NOT NULL,
@@ -232,28 +240,33 @@ CREATE TABLE points_ledger (
   created_by      TEXT NOT NULL,
   created_at      TEXT NOT NULL
 );
+CREATE INDEX ix_pl_account ON points_ledger(account_id, earned_on);
 CREATE INDEX ix_pl_customer ON points_ledger(customer_id, earned_on);
 CREATE INDEX ix_pl_earned ON points_ledger(earned_on);
 
 CREATE TABLE points_account (
-  customer_id      TEXT PRIMARY KEY REFERENCES customer(customer_id),
+  account_id       TEXT PRIMARY KEY REFERENCES account(account_id),
+  customer_id      TEXT NOT NULL REFERENCES customer(customer_id),
   balance          INTEGER NOT NULL DEFAULT 0,
   lifetime_earned  INTEGER NOT NULL DEFAULT 0,
   lifetime_clawed  INTEGER NOT NULL DEFAULT 0,
   updated_at       TEXT NOT NULL
 );
+CREATE INDEX ix_pa_customer ON points_account(customer_id);
 
 CREATE TABLE nudge (
-  nudge_id   TEXT PRIMARY KEY,
+  nudge_id    TEXT PRIMARY KEY,
   customer_id TEXT NOT NULL,
-  rule_code  TEXT,
-  kind       TEXT NOT NULL,
-  message    TEXT NOT NULL,
-  dedupe_key TEXT NOT NULL UNIQUE,
-  status     TEXT NOT NULL DEFAULT 'PENDING',
-  created_at TEXT NOT NULL,
-  sent_at    TEXT
+  account_id  TEXT,
+  rule_code   TEXT,
+  kind        TEXT NOT NULL,
+  message     TEXT NOT NULL,
+  dedupe_key  TEXT NOT NULL UNIQUE,
+  status      TEXT NOT NULL DEFAULT 'PENDING',
+  created_at  TEXT NOT NULL,
+  sent_at     TEXT
 );
+CREATE INDEX ix_nudge_customer ON nudge(customer_id, created_at);
 
 -- ---------- 6. Testing / governance ----------------------------------
 CREATE TABLE test_scenario (
@@ -312,7 +325,6 @@ CREATE TABLE audit_log (
   hash         TEXT NOT NULL
 );
 
--- Append-only enforcement
 CREATE TRIGGER trg_pl_no_update BEFORE UPDATE ON points_ledger BEGIN
   SELECT RAISE(ABORT, 'points_ledger is immutable');
 END;

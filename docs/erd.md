@@ -1,4 +1,4 @@
-# MXP v3 — Entity relationship diagram
+# MXP v5 — Entity relationship diagram
 
 Source: [`packages/platform/src/schema.sql`](../packages/platform/src/schema.sql). Narrative: [03-data-model.md](03-data-model.md).
 
@@ -27,7 +27,6 @@ flowchart LR
     rule_state
     control_decision
     rule_evaluation
-    spend_control_breach
     points_ledger
     points_account
     nudge
@@ -50,7 +49,7 @@ flowchart LR
   txn --> rule_evaluation
   txn --> points_ledger
   customer --> rule_state
-  customer --> points_account
+  customer --> nudge
   app_user --> user_role
   test_scenario --> test_run
 ```
@@ -231,37 +230,35 @@ erDiagram
 
 ## Logical links (no FK in SQLite)
 
-These are enforced in application code / the rules engine:
-
 | From | Column | To | Why |
 |---|---|---|---|
 | `rule` | `template_code` | `@mxp/rules` template file | Templates are not DB rows |
-| `rule_state` / `rule_evaluation` / `points_ledger` / `nudge` | `rule_code` | `rule.rule_code` | Soft link so history survives retirement |
+| `rule` | `states` (in JSON) | `reference_value` list `states` | Geo targeting |
+| `rule` | `product_scope` | CASA / CREDIT_CARD / ANY | Product-level rules |
+| `rule_state` / evaluations / ledger / nudge | `rule_code` | `rule.rule_code` | Soft link so history survives retirement |
 | `transaction` | `reversal_of` | `transaction.event_id` | Refunds |
-| `transaction` | `account_id` | `account.account_id` | Optional |
-| `merchant` | `category_code` | `reference_value` (categories) | Lookup |
-| `audit_log` | `entity_id` | any table | Soft reference by `entity_type` |
+| `nudge` | `kind = PERFORMANCE` | (no rule) | Overall portfolio performance |
 
-## Path of one event
+## Path of one DWH day
 
 ```mermaid
 sequenceDiagram
-  participant API
+  participant DWH as Data warehouse
+  participant API as POST /ops/dwh/sync
   participant TXN as transaction
   participant ENG as @mxp/rules
-  participant ST as rule_state
-  participant EV as rule_evaluation
   participant PL as points_ledger
   participant PA as points_account
+  participant N as nudge
 
-  API->>TXN: INSERT (RECEIVED)
-  API->>ENG: process(event, ctx, store)
-  ENG->>ST: get/set window & lifetime
+  DWH->>API: rows for business_date
+  API->>TXN: upsert by account_id
+  API->>ENG: process each new/changed event
+  Note over ENG: filter by effective dates, states, productScope
   ENG-->>API: evaluations + effects
-  API->>EV: INSERT outcomes
-  API->>PL: INSERT AWARD/CLAWBACK
-  API->>PA: UPDATE balance
-  API->>TXN: status = PROCESSED
+  API->>PL: AWARD/CLAWBACK per account
+  API->>PA: UPDATE account balance
+  API->>N: PERFORMANCE nudges optional
 ```
 
 Open this file in an editor with Mermaid preview (or GitHub) to render the diagrams.

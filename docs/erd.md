@@ -22,8 +22,7 @@ flowchart LR
     customer_setting
     mission_enrollment
   end
-  subgraph RUN["5. Runtime / DWH"]
-    dwh_batch
+  subgraph RUN["5. Runtime"]
     txn["transaction"]
     rule_state
     control_decision
@@ -46,10 +45,7 @@ flowchart LR
   customer --> mission_enrollment
   rule --> customer_setting
   rule --> mission_enrollment
-  dwh_batch --> txn
-  account --> txn
-  account --> points_account
-  account --> points_ledger
+  customer --> txn
   txn --> rule_evaluation
   txn --> points_ledger
   customer --> rule_state
@@ -60,29 +56,31 @@ flowchart LR
 
 ## Full ERD (keys and relationships)
 
-> Notes for GitHub Mermaid: SQL table `"transaction"` is drawn as `txn`. Use a single key marker (`PK` only) — GitHub rejects `PK,FK`. Points and transactions are **account-centric** in v4.
+> Notes for GitHub Mermaid: the SQL table `"transaction"` is drawn as `txn` (reserved word). Composite keys use a single marker (`PK` only) — GitHub’s Mermaid build rejects `PK,FK`.
 
 ```mermaid
 erDiagram
   segment ||--o{ customer : has
   customer ||--o{ account : owns
-  account ||--|| points_account : balance
-  account ||--o{ points_ledger : ledger
-  account ||--o{ txn : posts
+  customer ||--|| points_account : balance
 
   customer ||--o{ customer_setting : sets
   rule ||--o{ customer_setting : configures
   customer ||--o{ mission_enrollment : joins
   rule ||--o{ mission_enrollment : offers
 
-  dwh_batch ||--o{ txn : loads
+  customer ||--o{ txn : posts
   txn ||--o{ rule_evaluation : produces
+  txn ||--o{ spend_control_breach : may_breach
   txn ||--o{ points_ledger : may_earn
+  rule_evaluation ||--o| spend_control_breach : details
 
   customer ||--o{ rule_state : progress
   customer ||--o{ control_decision : preauth
+  customer ||--o{ points_ledger : ledger
   customer ||--o{ nudge : messages
   customer ||--o{ rule_evaluation : evaluated
+  customer ||--o{ spend_control_breach : breaches
 
   test_scenario ||--o{ test_run : runs
   app_user ||--o{ user_role : has_role
@@ -96,7 +94,6 @@ erDiagram
     string customer_id PK
     string customer_ref UK
     string segment_code FK
-    string state_code
     string timezone
     string attributes_json
   }
@@ -105,16 +102,12 @@ erDiagram
     string customer_id FK
     string account_type
     string product_family
-    string state_code
   }
   rule {
     string rule_code PK
     string family
     string template_code
     string status
-    string product_scope
-    string effective_from
-    string effective_to
     string definition_json
   }
   customer_setting {
@@ -132,22 +125,14 @@ erDiagram
     string status
     string enrolled_at
   }
-  dwh_batch {
-    string batch_id PK
-    string business_date
-    string source_system
-    int row_count
-    string status
-  }
   txn {
     string event_id PK
     string source_system
     string source_event_id
     string event_type
     string customer_id FK
-    string account_id FK
-    string dwh_batch_id FK
     string occurred_at
+    string payload_json
     string status
   }
   rule_state {
@@ -161,7 +146,6 @@ erDiagram
   control_decision {
     string decision_id PK
     string customer_id
-    string account_id
     string decision
     string reasons_json
   }
@@ -170,13 +154,20 @@ erDiagram
     string event_id
     string rule_code
     string customer_id
-    string account_id
     string outcome
     int points
   }
+  spend_control_breach {
+    string breach_id PK
+    string evaluation_id
+    string customer_id
+    string rule_code
+    string event_id
+    float limit_value
+    float measured_value
+  }
   points_ledger {
     int ledger_id PK
-    string account_id FK
     string customer_id FK
     string entry_type
     int points
@@ -186,17 +177,14 @@ erDiagram
     string earned_on
   }
   points_account {
-    string account_id PK
-    string customer_id FK
+    string customer_id PK
     int balance
     int lifetime_earned
   }
   nudge {
     string nudge_id PK
     string customer_id
-    string account_id
     string rule_code
-    string kind
     string dedupe_key UK
   }
   test_scenario {
